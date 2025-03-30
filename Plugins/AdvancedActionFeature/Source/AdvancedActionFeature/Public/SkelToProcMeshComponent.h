@@ -4,11 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+
 #include "SkelToProcMeshComponent.generated.h"
 
 class USkeletalMeshComponent;
 class UProceduralMeshComponent;
-struct FProcMeshTangent; // 전방 선언
+struct FProcMeshTangent; 
+class FSkeletalMeshLODRenderData;
+enum class EProcMeshSliceCapOption : uint8;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class ADVANCEDACTIONFEATURE_API USkelToProcMeshComponent : public UActorComponent
@@ -35,7 +38,10 @@ public:
     // true이면 원본 메시에 버텍스 컬러가 존재하는 경우 복사합니다.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bCopyVertexColors = true;
-
+    
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Mesh")
+    UMaterialInterface* CapMaterialInterface;
+    
     // true이면 최종 포즈 지오메트리를 기반으로 노멀을 다시 계산합니다.
     // false이면 기본 스켈레탈 메시의 노멀을 복사합니다 (더 빠르지만 변형된 형태에는 덜 정확할 수 있음).
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
@@ -43,6 +49,14 @@ public:
 
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     FName BoneName;
+    
+    UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
+    float CreateProceduralMeshDistance;
+    UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
+    float Threshold = 0.01;
+        
+    UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
+    int DebugVertexIndex;
     /**
      * 소유자의 Skeletal Mesh Component에서 Procedural Mesh Component로 변환을 수행합니다.
      * ProceduralMeshComponent가 존재하지 않으면 생성합니다.
@@ -51,14 +65,23 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category = "Procedural Mesh")
     bool ConvertSkeletalMeshToProceduralMesh(bool bForceNewPMC, FName TargetBoneName);
+    
+    UFUNCTION(BlueprintCallable, Category = "Procedural Mesh|Debug")
+    void LogVerticesInfluencedByBone(
+        FName BoneNameToLog,
+        int32 LODIndexToLog = 0,
+        float WeightThreshold = 0.001f,
+        bool bVisualize = true,
+        float SphereRadius = 1.5f,
+        FColor SphereColor = FColor::Magenta,
+        float LifeTime = 5.0f);
 
 protected:
     // 게임이 시작될 때 호출됩니다.
     virtual void BeginPlay() override;
 
 private:
-    /** 소유자에서 대상 Skeletal Mesh Component를 찾는 헬퍼 함수 */
-    USkeletalMeshComponent* GetOwnerSkeletalMeshComponent() const;
+
 
     /** Procedural Mesh Component를 가져오거나 생성하는 헬퍼 함수 */
     bool SetupProceduralMeshComponent(bool bForceNew);
@@ -81,7 +104,23 @@ private:
         TArray<TArray<int32>>& SectionIndices // 출력: 각 섹션의 인덱스(트라이앵글) 배열
         );
 
-    bool IsVertexInfluencedByBone(int32 VertexIndex, int32 TargetBoneIndex, float MinWeight, const FSkinWeightVertexBuffer* SkinWeightBuffer);
+    bool SliceMesh(
+        UProceduralMeshComponent* InProcMesh,
+        FVector PlanePosition,
+        FVector PlaneNormal,
+        bool bCreateOtherHalf,
+        UProceduralMeshComponent*& OutOtherHalfProcMesh,
+        EProcMeshSliceCapOption CapOption,
+        UMaterialInterface* CapMaterial
+        );
+
+
+    
+    float GetBoneWeightForVertex(int32 VertexIndex, int32 TargetBoneIndex,  const FSkelMeshRenderSection* SkelMeshRenderSection, const FSkeletalMeshLODRenderData* LODRenderData, const FSkinWeightVertexBuffer* SkinWeightBuffer);
+
+    /** 소유자에서 대상 Skeletal Mesh Component를 찾는 헬퍼 함수 */
+    USkeletalMeshComponent* GetOwnerSkeletalMeshComponent() const;
+
 };
 
 
