@@ -9,17 +9,9 @@
   <component name="ChangeListManager">
     <list default="true" id="e2cb7a5e-445f-4d26-9b4a-ef9aa10d1f20" name="변경" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.SkeletalMeshCutting.dir/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.SkeletalMeshCutting.dir/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Characters/Mannequins/Materials/M_Mannequin.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Characters/Mannequins/Materials/M_Mannequin.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Characters/Mannequins/Meshes/SK_Mannequin.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Characters/Mannequins/Meshes/SK_Mannequin.uasset" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.uasset" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Source/AdvancedActionFeature/Private/SkelToProcMeshComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Source/AdvancedActionFeature/Private/SkelToProcMeshComponent.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Source/AdvancedActionFeature/Public/SkelToProcMeshComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Source/AdvancedActionFeature/Public/SkelToProcMeshComponent.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Plugins/LearnShader/Shaders/private/LShader.usf" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/LearnShader/Shaders/private/LShader.usf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Plugins/LearnShader/Source/LearnShader/LearnShader.Build.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/LearnShader/Source/LearnShader/LearnShader.Build.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Plugins/LearnShader/Source/LearnShader/LearnShaderSceneViewExtension.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/LearnShader/Source/LearnShader/LearnShaderSceneViewExtension.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Plugins/LearnShader/Source/LearnShader/Private/LearnShaderSubsystem.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/LearnShader/Source/LearnShader/Private/LearnShaderSubsystem.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Plugins/LearnShader/Source/LearnShader/Rendering/LeaernShaderPS.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/LearnShader/Source/LearnShader/Rendering/LeaernShaderPS.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Plugins/LearnShader/Source/LearnShader/Rendering/LeaernShaderPS.h" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/LearnShader/Source/LearnShader/Rendering/LeaernShaderPS.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -70,7 +62,7 @@
     <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="cidr-memory-view://25" root0="FORCE_HIGHLIGHTING" />
+    <setting file="cidr-memory-view://38" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/../../../../../Program Files/Epic Games/UE_5.5/Engine/Plugins/Compression/OodleNetwork/Sdks/2.9.12/include/oodle2net.h" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/../../../../../Program Files/Epic Games/UE_5.5/Engine/Plugins/Runtime/ProceduralMeshComponent/Intermediate/Build/Win64/UnrealEditor/Inc/ProceduralMeshComponent/UHT/KismetProceduralMeshLibrary.generated.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/../../../../../Program Files/Epic Games/UE_5.5/Engine/Source/Editor/UMGEditor/Private/DragDrop/WidgetTemplateDragDropOp.cpp" root0="FORCE_HIGHLIGHTING" />
@@ -142,7 +134,7 @@
   "keyToString": {
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "Uproject.SkeletalMeshCutting.executor": "Run",
+    "Uproject.SkeletalMeshCutting.executor": "Debug",
     "git-widget-placeholder": "master",
     "ignore.virus.scanning.warn.message": "true",
     "node.js.detected.package.eslint": "true",
@@ -252,7 +244,7 @@
       <workItem from="1743737941803" duration="1472000" />
       <workItem from="1744339869477" duration="4414000" />
       <workItem from="1744802266850" duration="598000" />
-      <workItem from="1744860553430" duration="15100000" />
+      <workItem from="1744860553430" duration="17737000" />
     </task>
     <servers />
   </component>

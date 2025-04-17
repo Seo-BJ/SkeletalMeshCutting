@@ -60,7 +60,10 @@ public:
     float CreateProceduralMeshDistance;
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     float Threshold = 0.01;
-        
+    UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
+    float ImpulseMagnitude = 10000000;
+
+    
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     int DebugVertexIndex;
     /**

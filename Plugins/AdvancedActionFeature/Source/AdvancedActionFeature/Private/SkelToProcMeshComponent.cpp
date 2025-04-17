@@ -194,111 +194,117 @@ bool USkelToProcMeshComponent::CopySkeletalLODToProcedural(USkeletalMeshComponen
         }
     }
 
-    FVector BoneLocation = GetOwnerSkeletalMeshComponent()->GetBoneLocation(TargetBoneName);
-    if (BoneLocation == FVector::ZeroVector) {
-        UE_LOG(LogTemp, Error, TEXT("SliceMeshAtBone: Failed to get Bone '%s' location. Check if the bone exists in the skeleton."), *TargetBoneName.ToString());
-        return false;
-    }
-    
-    UProceduralMeshComponent* OtherHalfMesh = nullptr;		//잘린 Procedural Mesh가 OtherHalfMesh가 된다.
-    SliceMesh(ProceduralMeshComponent, BoneLocation, FVector::UpVector, true, OtherHalfMesh, EProcMeshSliceCapOption::CreateNewSectionForCap, CapMaterialInterface);
-
-    if (!OtherHalfMesh) {
-        UE_LOG(LogTemp, Warning, TEXT("SliceMeshAtBone: Failed to slice mesh at bone '%s'."), *TargetBoneName.ToString());
-        return false; // 또는 해당 함수 반환 타입에 맞게 처리
-    }
-
-    // --- 물리 시뮬레이션 활성화 ---
-    // **중요:** 레그돌을 위해 true로 설정!
-    ProceduralMeshComponent->SetSimulatePhysics(true);
-    OtherHalfMesh->SetSimulatePhysics(true);
-
-    // 콜리전 설정 (필요시) - PMC 생성 시 콜리전이 활성화되도록 설정해야 함
-    // ProceduralMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    // OtherHalfMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    // ProceduralMeshComponent->SetCollisionProfileName(UCollisionProfile::PhysicsActor_ProfileName); // 예시
-    // OtherHalfMesh->SetCollisionProfileName(UCollisionProfile::PhysicsActor_ProfileName); // 예시
-
-    UE_LOG(LogTemp, Display, TEXT("Physics Simulation Enabled for PMC pieces"));
-
-
-    // --- 임펄스 추가 ---
-    // 임펄스 방향 결정 (예: 충돌 법선의 반대 방향 또는 발사체 방향)
-    FVector ImpulseDirection = FVector::ForwardVector * -1.0f; // 충돌 지점 법선의 반대 방향
-    // 또는 발사체 방향 사용: ImpulseDirection = ProjectileVelocity.GetSafeNormal();
-
-    // 임펄스 강도 (매우 중요! 메쉬의 질량, 원하는 효과에 따라 크게 달라짐. 많은 테스트 필요)
-    float ImpulseStrength = 100000.0f; // 예시 값 (단위는 Unreal Unit 질량 * Unreal Unit/초)
-
-    // 임펄스 적용 위치 (예: 충돌 지점 또는 절단 기준점)
-    FVector ImpulseOrigin = FVector::ForwardVector; // 또는 BoneLocation 사용
-
-    // 각 조각에 임펄스 적용 (AddImpulseAtLocation 사용 시 회전 효과도 발생)
-    // 컴포넌트의 무게 중심(Center of Mass)과 ImpulseOrigin의 거리에 따라 회전력이 달라짐
-    ProceduralMeshComponent->AddImpulseAtLocation(ImpulseDirection * ImpulseStrength, ImpulseOrigin);
-
-    // 다른 조각에도 임펄스를 적용할 수 있습니다. 같은 방향, 반대 방향 등 다양하게 시도 가능
-    // 예시: 같은 방향으로 약간 약하게 적용
-    OtherHalfMesh->AddImpulseAtLocation(ImpulseDirection * ImpulseStrength * 0.8f, ImpulseOrigin);
-
-    UE_LOG(LogTemp, Log, TEXT("Applied impulse to both PMC pieces at location %s with direction %s and strength %.f"),
-        *ImpulseOrigin.ToString(), *ImpulseDirection.ToString(), ImpulseStrength);
-
-    if (!OtherHalfMesh) {
-        UE_LOG(LogTemp, Warning, TEXT("SliceMeshAtBone: Failed to slice mesh at bone '%s'."), *TargetBoneName.ToString());
-        return false; // 또는 해당 함수 반환 타입에 맞게 처리
-    }
-    
-    // --- 본 이름 유효성 검사 및 존재 확인 ---
-    if (TargetBoneName.IsNone()) {
-        UE_LOG(LogTemp, Warning, TEXT("SliceMeshAtBone: TargetBoneName is None!"));
-        return false;
-    }
-    // SkelComp에서 해당 본(또는 소켓)이 실제로 존재하는지 확인하는 것이 안전합니다.
-    // DoesSocketExist 함수는 소켓과 본 이름을 모두 확인합니다.
+    // --- 1. 본 위치 확인 및 메쉬 슬라이스 ---
+    // 본/소켓 존재 여부 먼저 확인하는 것이 더 안전합니다.
     if (!SkelComp->DoesSocketExist(TargetBoneName)) {
-        UE_LOG(LogTemp, Warning, TEXT("SliceMeshAtBone: Bone or Socket named '%s' does not exist in the SkeletalMeshComponent!"), *TargetBoneName.ToString());
+        UE_LOG(LogTemp, Error, TEXT("SliceAndAttach: Target Bone or Socket '%s' does not exist on SkelComp!"), *TargetBoneName.ToString());
         return false;
     }
-    
 
+    FVector BoneLocation = SkelComp->GetBoneLocation(TargetBoneName);
+    // GetBoneLocation이 ZeroVector를 반환하는 경우가 유효한 경우도 있으므로, 존재 여부 체크 후 ZeroVector 체크는 선택적.
+    if (BoneLocation == FVector::ZeroVector && TargetBoneName != NAME_None) {
+        UE_LOG(LogTemp, Warning, TEXT("SliceAndAttach: Got ZeroVector for Bone '%s' location. Ensure this is correct."), *TargetBoneName.ToString());
+    }
+
+    UProceduralMeshComponent* OtherHalfMesh = nullptr;
+    SliceMesh(ProceduralMeshComponent, BoneLocation, FVector::UpVector, /*CreateOtherHalf=*/ true, OtherHalfMesh, EProcMeshSliceCapOption::CreateNewSectionForCap, CapMaterialInterface);
+
+    if (!OtherHalfMesh) {
+        UE_LOG(LogTemp, Error, TEXT("SliceAndAttach: SliceMesh failed for bone '%s'. OtherHalfMesh is null."), *TargetBoneName.ToString());
+        return false;
+    }
+        UE_LOG(LogTemp, Log, TEXT("SliceMesh successful for bone '%s'."), *TargetBoneName.ToString());
+
+
+    // --- 2. 원본 메쉬의 해당 부분 숨기기 ---
+    // HideOriginalMeshVerticesByBone 함수는 Threshold 값을 내부적으로 사용하거나 파라미터로 받아야 합니다.
+    bool bHidden = HideOriginalMeshVerticesByBone(SkelComp, LODIndex, TargetBoneName /*, Threshold - 필요시 추가 */);
+    if (bHidden) {
+        UE_LOG(LogTemp, Log, TEXT("Successfully requested hiding of original vertices for bone '%s'."), *TargetBoneName.ToString());
+    } else {
+        UE_LOG(LogTemp, Warning, TEXT("Failed to hide original vertices for bone '%s'."), *TargetBoneName.ToString());
+        // 숨기기 실패 시 진행 여부 결정 필요
+    }
+
+
+    // --- 3. PMC 조각들 설정 및 부착 ---
+
+    // 생성된 PMC 조각들은 물리 시뮬레이션을 하지 않고 부모 스켈레톤을 따라가도록 설정
     ProceduralMeshComponent->SetSimulatePhysics(false);
     OtherHalfMesh->SetSimulatePhysics(false);
-    UE_LOG(LogTemp, Display, TEXT("Physic Disable"));
+
+    // 콜리전 설정 (부착된 상태에서 어떻게 상호작용할지 결정)
+    // 예: 쿼리만 가능하게 하거나, 아예 끄거나. 부모가 레그돌되면 부모의 콜리전을 따름.
+    ProceduralMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly); // 또는 NoCollision
+    OtherHalfMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly); // 또는 NoCollision
+    UE_LOG(LogTemp, Display, TEXT("Physics Disabled for PMC pieces. Collision set to QueryOnly."));
 
 
-    // --- Procedural Mesh들을 TargetBoneName 본에 직접 Attach ---
-    UE_LOG(LogTemp, Log, TEXT("Attaching both PMC pieces to bone: %s"), *TargetBoneName.ToString());
+    // 부착할 소켓/본 이름 유효성 검사
+    if (ProceduralMeshAttachSocketName.IsNone() || !SkelComp->DoesSocketExist(ProceduralMeshAttachSocketName)) {
+        UE_LOG(LogTemp, Error, TEXT("SliceAndAttach: ProceduralMeshAttachSocketName '%s' is None or does not exist!"), *ProceduralMeshAttachSocketName.ToString());
+        // 대체 본 이름(예: TargetBoneName) 사용 또는 실패 처리
+        // ProceduralMeshAttachSocketName = TargetBoneName; // 예시: 대체
+        return false; // 또는 실패 처리
+    }
+    if (OtherHalfMeshAttachSocketName.IsNone() || !SkelComp->DoesSocketExist(OtherHalfMeshAttachSocketName)) {
+        UE_LOG(LogTemp, Error, TEXT("SliceAndAttach: OtherHalfMeshAttachSocketName '%s' is None or does not exist!"), *OtherHalfMeshAttachSocketName.ToString());
+        // 대체 본 이름(예: TargetBoneName) 사용 또는 실패 처리
+        // OtherHalfMeshAttachSocketName = TargetBoneName; // 예시: 대체
+        return false; // 또는 실패 처리
+    }
 
-    // 기존 PMC 조각을 TargetBoneName 본에 부착
-   // ProceduralMeshComponent->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, TargetBoneName);
+    // 각 PMC 조각을 지정된 소켓/본에 부착
+    UE_LOG(LogTemp, Log, TEXT("Attaching ProceduralMeshComponent to '%s' and OtherHalfMesh to '%s'."), *ProceduralMeshAttachSocketName.ToString(), *OtherHalfMeshAttachSocketName.ToString());
 
-    // 새로 생긴 PMC 조각(OtherHalf)도 TargetBoneName 본에 부착
-  //  OtherHalfMesh->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, TargetBoneName);
-    
+    // 보통 슬라이스 후에는 KeepRelativeTransform이 원래 형태를 유지하는 데 유리합니다.
+    ProceduralMeshComponent->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, ProceduralMeshAttachSocketName);
+    OtherHalfMesh->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, OtherHalfMeshAttachSocketName);
 
-    UE_LOG(LogTemp, Log, TEXT("Attachment completed."));
+    UE_LOG(LogTemp, Log, TEXT("PMC Attachment completed."));
 
-    //Ragdoll 적용 & Bone 자름.
-    SkelComp->SetCollisionProfileName(TEXT("Ragdoll"));
-    SkelComp->BreakConstraint(FVector(1000.f, 1000.f, 1000.f), FVector::ZeroVector, TargetBoneName);
+
+    // --- 4. 부모 스켈레탈 메쉬 컴포넌트 레그돌화 ---
+    // 이 부분은 부모 SkelComp 전체를 레그돌 상태로 만들고 싶을 때 활성화합니다.
+    // SkelComp에 Physics Asset이 제대로 설정되어 있어야 합니다.
+
+    UE_LOG(LogTemp, Log, TEXT("Initiating ragdoll on parent SkelComp '%s'..."), *SkelComp->GetName());
+
+    // 레그돌 콜리전 프로파일 설정
+    SkelComp->SetCollisionProfileName(TEXT("Ragdoll")); // "Ragdoll" 프로파일이 Project Settings에 정의되어 있고, Physics Collision을 활성화해야 함
+
+    // 물리 시뮬레이션 활성화 (프로파일 설정 후 또는 전, 순서는 크게 중요하지 않으나 후가 약간 더 안전)
     SkelComp->SetSimulatePhysics(true);
 
-    //Procedural Mesh에 물리 적용
-    //ProcMeshComponent->SetSimulatePhysics(true); -> true 시 따로 움직인다.
-    ProceduralMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    // 절단된 본 주변의 피직스 컨스트레인트(Constraint)를 끊어서 분리 효과 강조 (선택 사항)
+    // BreakConstraint는 지정된 본과 그 *부모 본* 사이의 컨스트레인트를 끊는 경향이 있습니다.
+    // 정확한 동작은 Physics Asset 설정에 따라 달라질 수 있습니다.
+    // 임펄스 방향 및 위치 계산 (예: 충돌 정보를 사용하거나 기본값 사용)
+    FVector BreakImpulseDirection = FVector::ZeroVector; // 기본값
+    FVector BreakLocation = BoneLocation; // 기본값 (절단 위치)
 
-    bool bHidden = HideOriginalMeshVerticesByBone(SkelComp, LODIndex, TargetBoneName);
-    if (bHidden)
+   // if (Hit.IsValidBlockingHit()) // 충돌 정보가 있다면 사용
     {
-        UE_LOG(LogTemp, Log, TEXT("Successfully hid original vertices."));
+        BreakImpulseDirection = FVector::ForwardVector * -1.0f; // 충돌 법선 반대 방향
+       //  BreakLocation = Hit.ImpactPoint;
+        // 충돌 위치를 사용하는 것이 더 자연스러울 수 있음
     }
-    else
+   // else // 충돌 정보 없으면 임의 방향 (예: 위쪽)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Failed to hide original vertices."));
+        BreakImpulseDirection = FVector::UpVector;
     }
-    
-    return true; // 성공적으로 완료
+
+    FVector FinalBreakImpulse = BreakImpulseDirection * ImpulseMagnitude; // 최종 임펄스 계산
+
+    UE_LOG(LogTemp, Log, TEXT("Breaking constraint at bone '%s' with Impulse: %s at Location: %s"), *TargetBoneName.ToString(), *FinalBreakImpulse.ToString(), *BreakLocation.ToString());
+    SkelComp->BreakConstraint(FinalBreakImpulse, FVector::ZeroVector, TargetBoneName);
+
+    UE_LOG(LogTemp, Log, TEXT("Parent SkelComp ragdoll initiated successfully."));
+
+    // ------------------------------------
+
+    return true; // 모든 과정 성공
 }
 
 
