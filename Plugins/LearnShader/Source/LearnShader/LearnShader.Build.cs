@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.IO;
 using UnrealBuildTool;
 
 public class LearnShader : ModuleRules
@@ -11,6 +12,7 @@ public class LearnShader : ModuleRules
 		PublicIncludePaths.AddRange(
 			new string[] {
 				// ... add public include paths required here ...
+				Path.Combine(GetModuleDirectory("Renderer"), "private"),
 			}
 			);
 				

@@ -117,7 +117,7 @@ bool USkelToProcMeshComponent::SetupProceduralMeshComponent(bool bForceNew)
     return (ProceduralMeshComponent != nullptr);
 }
 
-bool USkelToProcMeshComponent::CopySkeletalLODToProcedural(const USkeletalMeshComponent* SkelComp, FName TargetBoneName, int32 LODIndex)
+bool USkelToProcMeshComponent::CopySkeletalLODToProcedural(USkeletalMeshComponent* SkelComp, FName TargetBoneName, int32 LODIndex)
 {
     // --- 1. 메쉬 데이터 추출 ---
     TArray<FVector> Vertices;           // 버텍스 위치 배열
@@ -129,13 +129,7 @@ bool USkelToProcMeshComponent::CopySkeletalLODToProcedural(const USkeletalMeshCo
     TArray<TArray<int32>> SectionIndices; // 각 섹션의 트라이앵글 인덱스
 
     bool bDataExtracted = GetFilteredSkeletalMeshDataByBoneName(SkelComp, TargetBoneName, 0.f, LODIndex, Vertices, Normals, Tangents, UV0, VertexColors, SectionMaterialIndices, SectionIndices);
-
-    if (!bDataExtracted || Vertices.Num() == 0)
-    {
-        UE_LOG(LogTemp, Error, TEXT("SkelToProcMeshComponent: LOD %d에서 메쉬 데이터 추출에 실패했습니다."), LODIndex);
-        return false;
-    }
-
+    
      // --- 선택 사항: 노멀 재계산 ---
     if (bRecalculateNormals)
     {
@@ -207,11 +201,102 @@ bool USkelToProcMeshComponent::CopySkeletalLODToProcedural(const USkeletalMeshCo
     }
     
     UProceduralMeshComponent* OtherHalfMesh = nullptr;		//잘린 Procedural Mesh가 OtherHalfMesh가 된다.
-    SliceMesh(ProceduralMeshComponent, BoneLocation, FVector::UpVector, true,OtherHalfMesh, EProcMeshSliceCapOption::CreateNewSectionForCap, CapMaterialInterface);
+    SliceMesh(ProceduralMeshComponent, BoneLocation, FVector::UpVector, true, OtherHalfMesh, EProcMeshSliceCapOption::CreateNewSectionForCap, CapMaterialInterface);
+
+    if (!OtherHalfMesh) {
+        UE_LOG(LogTemp, Warning, TEXT("SliceMeshAtBone: Failed to slice mesh at bone '%s'."), *TargetBoneName.ToString());
+        return false; // 또는 해당 함수 반환 타입에 맞게 처리
+    }
+
+    // --- 물리 시뮬레이션 활성화 ---
+    // **중요:** 레그돌을 위해 true로 설정!
+    ProceduralMeshComponent->SetSimulatePhysics(true);
+    OtherHalfMesh->SetSimulatePhysics(true);
+
+    // 콜리전 설정 (필요시) - PMC 생성 시 콜리전이 활성화되도록 설정해야 함
+    // ProceduralMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    // OtherHalfMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    // ProceduralMeshComponent->SetCollisionProfileName(UCollisionProfile::PhysicsActor_ProfileName); // 예시
+    // OtherHalfMesh->SetCollisionProfileName(UCollisionProfile::PhysicsActor_ProfileName); // 예시
+
+    UE_LOG(LogTemp, Display, TEXT("Physics Simulation Enabled for PMC pieces"));
 
 
+    // --- 임펄스 추가 ---
+    // 임펄스 방향 결정 (예: 충돌 법선의 반대 방향 또는 발사체 방향)
+    FVector ImpulseDirection = FVector::ForwardVector * -1.0f; // 충돌 지점 법선의 반대 방향
+    // 또는 발사체 방향 사용: ImpulseDirection = ProjectileVelocity.GetSafeNormal();
+
+    // 임펄스 강도 (매우 중요! 메쉬의 질량, 원하는 효과에 따라 크게 달라짐. 많은 테스트 필요)
+    float ImpulseStrength = 100000.0f; // 예시 값 (단위는 Unreal Unit 질량 * Unreal Unit/초)
+
+    // 임펄스 적용 위치 (예: 충돌 지점 또는 절단 기준점)
+    FVector ImpulseOrigin = FVector::ForwardVector; // 또는 BoneLocation 사용
+
+    // 각 조각에 임펄스 적용 (AddImpulseAtLocation 사용 시 회전 효과도 발생)
+    // 컴포넌트의 무게 중심(Center of Mass)과 ImpulseOrigin의 거리에 따라 회전력이 달라짐
+    ProceduralMeshComponent->AddImpulseAtLocation(ImpulseDirection * ImpulseStrength, ImpulseOrigin);
+
+    // 다른 조각에도 임펄스를 적용할 수 있습니다. 같은 방향, 반대 방향 등 다양하게 시도 가능
+    // 예시: 같은 방향으로 약간 약하게 적용
+    OtherHalfMesh->AddImpulseAtLocation(ImpulseDirection * ImpulseStrength * 0.8f, ImpulseOrigin);
+
+    UE_LOG(LogTemp, Log, TEXT("Applied impulse to both PMC pieces at location %s with direction %s and strength %.f"),
+        *ImpulseOrigin.ToString(), *ImpulseDirection.ToString(), ImpulseStrength);
+
+    if (!OtherHalfMesh) {
+        UE_LOG(LogTemp, Warning, TEXT("SliceMeshAtBone: Failed to slice mesh at bone '%s'."), *TargetBoneName.ToString());
+        return false; // 또는 해당 함수 반환 타입에 맞게 처리
+    }
+    
+    // --- 본 이름 유효성 검사 및 존재 확인 ---
+    if (TargetBoneName.IsNone()) {
+        UE_LOG(LogTemp, Warning, TEXT("SliceMeshAtBone: TargetBoneName is None!"));
+        return false;
+    }
+    // SkelComp에서 해당 본(또는 소켓)이 실제로 존재하는지 확인하는 것이 안전합니다.
+    // DoesSocketExist 함수는 소켓과 본 이름을 모두 확인합니다.
+    if (!SkelComp->DoesSocketExist(TargetBoneName)) {
+        UE_LOG(LogTemp, Warning, TEXT("SliceMeshAtBone: Bone or Socket named '%s' does not exist in the SkeletalMeshComponent!"), *TargetBoneName.ToString());
+        return false;
+    }
+    
+
+    ProceduralMeshComponent->SetSimulatePhysics(false);
+    OtherHalfMesh->SetSimulatePhysics(false);
+    UE_LOG(LogTemp, Display, TEXT("Physic Disable"));
 
 
+    // --- Procedural Mesh들을 TargetBoneName 본에 직접 Attach ---
+    UE_LOG(LogTemp, Log, TEXT("Attaching both PMC pieces to bone: %s"), *TargetBoneName.ToString());
+
+    // 기존 PMC 조각을 TargetBoneName 본에 부착
+   // ProceduralMeshComponent->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, TargetBoneName);
+
+    // 새로 생긴 PMC 조각(OtherHalf)도 TargetBoneName 본에 부착
+  //  OtherHalfMesh->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, TargetBoneName);
+    
+
+    UE_LOG(LogTemp, Log, TEXT("Attachment completed."));
+
+    //Ragdoll 적용 & Bone 자름.
+    SkelComp->SetCollisionProfileName(TEXT("Ragdoll"));
+    SkelComp->BreakConstraint(FVector(1000.f, 1000.f, 1000.f), FVector::ZeroVector, TargetBoneName);
+    SkelComp->SetSimulatePhysics(true);
+
+    //Procedural Mesh에 물리 적용
+    //ProcMeshComponent->SetSimulatePhysics(true); -> true 시 따로 움직인다.
+    ProceduralMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+    bool bHidden = HideOriginalMeshVerticesByBone(SkelComp, LODIndex, TargetBoneName);
+    if (bHidden)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Successfully hid original vertices."));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Failed to hide original vertices."));
+    }
     
     return true; // 성공적으로 완료
 }
@@ -269,8 +354,7 @@ bool USkelToProcMeshComponent::GetFilteredSkeletalMeshDataByBoneName(const USkel
         UE_LOG(LogTemp, Warning, TEXT("SkelToProcMeshComponent: LOD %d에 대해 GetNumVertices가 0개의 버텍스를 반환했습니다."), LODIndex);
         return false; // 버텍스가 없으면 실패 처리
     }
-
-
+    
     // --- 정적 버퍼 가져오기 (노멀, 탄젠트, UV, 컬러) ---
     // 참고: 이들은 일반적으로 *기본* 메쉬의 데이터이며, 나중에 bRecalculateNormals가 true가 아닌 이상 프레임마다 동적으로 재계산되지 않습니다.
     FStaticMeshVertexBuffers& StaticVertexBuffers = LODRenderData.StaticVertexBuffers;
@@ -350,9 +434,7 @@ bool USkelToProcMeshComponent::GetFilteredSkeletalMeshDataByBoneName(const USkel
         }
     }
     
-
     // --- 인덱스 재구성 단계 (섹션 구조 유지) ---
-
     // 원본 인덱스 버퍼 데이터 가져오기
     TArray<uint32> IndexBuffer;
     LODRenderData.MultiSizeIndexContainer.GetIndexBuffer(IndexBuffer);
@@ -433,29 +515,19 @@ bool USkelToProcMeshComponent::GetFilteredSkeletalMeshDataByBoneName(const USkel
     return true; // 성
 }
 
-bool USkelToProcMeshComponent::SliceMesh(UProceduralMeshComponent* InProcMesh, FVector PlanePosition,
-    FVector PlaneNormal, bool bCreateOtherHalf, UProceduralMeshComponent*& OutOtherHalfProcMesh,
+bool USkelToProcMeshComponent::SliceMesh(UProceduralMeshComponent* InProcMesh, FVector PlanePosition, FVector PlaneNormal, bool bCreateOtherHalf, UProceduralMeshComponent*& OutOtherHalfProcMesh,
     EProcMeshSliceCapOption CapOption, UMaterialInterface* CapMaterial)
 {
-    UKismetProceduralMeshLibrary::SliceProceduralMesh(
-           InProcMesh,                         
-           PlanePosition,                         
-           PlaneNormal,                          
-           bCreateOtherHalf,                     
-           OutOtherHalfProcMesh,                        
-           CapOption,       
-           CapMaterial                          
-       );
+    UKismetProceduralMeshLibrary::SliceProceduralMesh(InProcMesh, PlanePosition, PlaneNormal, bCreateOtherHalf, OutOtherHalfProcMesh, CapOption, CapMaterial);
     if (OutOtherHalfProcMesh != nullptr)
     {
         return true;
     }
     return false;
-    
 }
 
-float USkelToProcMeshComponent::GetBoneWeightForVertex(int32 VertexIndex, int32 TargetBoneIndex, const FSkelMeshRenderSection* SkelMeshRenderSection,
-                                                       const FSkeletalMeshLODRenderData* LODRenderData, const FSkinWeightVertexBuffer* SkinWeightBuffer)
+float USkelToProcMeshComponent::GetBoneWeightForVertex(int32 VertexIndex, int32 TargetBoneIndex, const FSkelMeshRenderSection* SkelMeshRenderSection, const FSkeletalMeshLODRenderData* LODRenderData,
+    const FSkinWeightVertexBuffer* SkinWeightBuffer)
 {
     if (!SkinWeightBuffer || SkinWeightBuffer->GetNumVertices() == 0) return -1.f;
     const int32 MaxInfluences = SkinWeightBuffer->GetMaxBoneInfluences();
@@ -475,7 +547,6 @@ float USkelToProcMeshComponent::GetBoneWeightForVertex(int32 VertexIndex, int32 
     }
     return -1.f;
 }
-
 
 USkeletalMeshComponent* USkelToProcMeshComponent::GetOwnerSkeletalMeshComponent() const
 {
@@ -499,163 +570,110 @@ USkeletalMeshComponent* USkelToProcMeshComponent::GetOwnerSkeletalMeshComponent(
     return SkelComp;
 }
 
-/*
-
-
-float USkelToProcMeshComponent::GetBoneWeightForVertex(int32 VertexIndex, int32 TargetBoneIndex, const FSkinWeightVertexBuffer* SkinWeightBuffer)
+bool USkelToProcMeshComponent::HideOriginalMeshVerticesByBone(USkeletalMeshComponent* SourceSkeletalMeshComp, int32 LODIndex, FName TargetBoneName, bool bClearOverride)
 {
-
-    if (!SkinWeightBuffer || !SkinWeightBuffer->GetNeedsCPUAccess())
+    if (!SourceSkeletalMeshComp || !SourceSkeletalMeshComp->GetSkeletalMeshAsset())
     {
-        return 0.0f;
+        UE_LOG(LogTemp, Warning, TEXT("HideOriginalMeshVerticesByBone: Invalid Skeletal Mesh Component or Asset."));
+        return false;
     }
 
-    const uint32 NumVertices = SkinWeightBuffer->GetNumVertices();
-    if (VertexIndex < 0 || (uint32)VertexIndex >= NumVertices)
-    {
-        return 0.0f;
-    }
-    
-    const int32 MaxInfluences = SkinWeightBuffer->GetMaxBoneInfluences();
+    USkeletalMesh* SkelMesh = SourceSkeletalMeshComp->GetSkeletalMeshAsset();
+    const FReferenceSkeleton& RefSkeleton = SkelMesh->GetRefSkeleton();
+    int32 TargetBoneIndex = RefSkeleton.FindBoneIndex(TargetBoneName);
 
-    for (int32 InfluenceIndex = 0; InfluenceIndex < MaxInfluences; ++InfluenceIndex)
-    {
-
-        const int32 CurrentBoneIndex = SkinWeightBuffer->GetBoneIndex(VertexIndex, InfluenceIndex);
-        // Get the weight for this influence slot
-        const float CurrentWeight = SkinWeightBuffer->GetBoneWeight(VertexIndex, InfluenceIndex);
-
-        // Check if this influence's bone index matches our target
-        if (CurrentBoneIndex == TargetBoneIndex)
-        {
-            // Found the target bone's influence for this vertex.
-            // Even if the weight is 0, we found the entry, so return its weight.
-            return CurrentWeight / 65535;
-        }
-
-    }
-    return 0.0f;
-}
-
-
-
- */
-
-void USkelToProcMeshComponent::LogVerticesInfluencedByBone(FName BoneNameToLog, int32 LODIndexToLog /*= 0*/, float WeightThreshold /*= 0.001f*/,
-    bool bVisualize /*= true*/, float SphereRadius /*= 1.5f*/, FColor SphereColor /*= FColor::Magenta*/, float LifeTime /*= 5.0f*/)
-{
-    
-    USkeletalMeshComponent* SkelComp = GetOwnerSkeletalMeshComponent(); 
-    USkinnedAsset* SkelMesh = SkelComp->GetSkinnedAsset();
-    if (!SkelComp || !SkelMesh)
-    {
-        UE_LOG(LogTemp, Error, TEXT("LogVerticesInfluencedByBone: Cannot find valid SkeletalMeshComponent or Asset on owner '%s'."), *GetOwner()->GetName());
-        return;
-    }
-    FSkeletalMeshRenderData* RenderData = SkelMesh->GetResourceForRendering();
-    if (!RenderData)
-    {
-        UE_LOG(LogTemp, Error, TEXT("LogVerticesInfluencedByBone: SkeletalMesh '%s' has no render data available."), *SkelMesh->GetName());
-        return;
-    }
-    if (!RenderData->LODRenderData.IsValidIndex(LODIndexToLog))
-    {
-        UE_LOG(LogTemp, Error, TEXT("LogVerticesInfluencedByBone: Invalid LOD Index %d requested for SkeletalMesh '%s'. Max LOD is %d."), LODIndexToLog, *SkelMesh->GetName(), RenderData->LODRenderData.Num() - 1);
-        return;
-    }
-    FSkeletalMeshLODRenderData& LODRenderData = RenderData->LODRenderData[LODIndexToLog];
-    const FSkinWeightVertexBuffer* SkinWeightBuffer = &LODRenderData.SkinWeightVertexBuffer;
-    if (!SkinWeightBuffer || SkinWeightBuffer->GetNumVertices() == 0)
-    {
-        UE_LOG(LogTemp, Error, TEXT("LogVerticesInfluencedByBone: SkinWeightBuffer for LOD %d is invalid or contains 0 vertices."), LODIndexToLog);
-        return;
-    }
-    if (!SkinWeightBuffer->GetNeedsCPUAccess())
-    {
-        UE_LOG(LogTemp, Error, TEXT("LogVerticesInfluencedByBone: CRITICAL - SkinWeightBuffer for LOD %d does NOT have CPU access! Weight data read from CPU will be incorrect (likely 0). Check mesh import settings or use alternative methods if CPU access is unavailable."), LODIndexToLog);
-        return;
-    }
-    
-    const uint32 NumVertices = SkinWeightBuffer->GetNumVertices();
-    const int32 MaxInfluences = SkinWeightBuffer->GetMaxBoneInfluences();
-    
-    const int32 TargetBoneIndex = SkelComp->GetBoneIndex(BoneNameToLog);
     if (TargetBoneIndex == INDEX_NONE)
     {
-        UE_LOG(LogTemp, Error, TEXT("LogVerticesInfluencedByBone: Bone named '%s' was not found in the skeleton of mesh '%s'."), *BoneNameToLog.ToString(), *SkelMesh->GetName());
-        return;
+        UE_LOG(LogTemp, Warning, TEXT("HideOriginalMeshVerticesByBone: Bone '%s' not found."), *TargetBoneName.ToString());
+        return false;
     }
-    else
+
+    // FSkeletalMeshRenderData 접근은 게임 스레드에서 직접 하면 위험할 수 있으나, 읽기 목적 및 컴포넌트 상태 기반이므로
+    // 일부 상황에서는 가능할 수 있습니다. 복잡한 경우 렌더 스레드 접근 고려.
+    FSkeletalMeshRenderData* SkelRenderData = SourceSkeletalMeshComp->GetSkeletalMeshRenderData();
+    if (!SkelRenderData || SkelRenderData->LODRenderData[LODIndex].GetNumVertices() == 0)
     {
-        UE_LOG(LogTemp, Log, TEXT("LogVerticesInfluencedByBone: Found Bone '%s' which corresponds to Index %d."), *BoneNameToLog.ToString(), TargetBoneIndex);
+         UE_LOG(LogTemp, Warning, TEXT("HideOriginalMeshVerticesByBone: Invalid LOD Index %d."), LODIndex);
+        return false;
     }
-    const FPositionVertexBuffer* PositionVertexBuffer = nullptr;
-    if (bVisualize)
+
+    FSkeletalMeshLODRenderData& LODRenderData = SkelRenderData->LODRenderData[LODIndex];
+    FSkinWeightVertexBuffer* SkinWeightBuffer = SourceSkeletalMeshComp->GetSkinWeightBuffer(LODIndex); // 인스턴스별 버퍼 가져오기
+
+    if (!SkinWeightBuffer)
     {
-        // StaticVertexBuffers 및 PositionVertexBuffer 유효성 확인
-        if (&LODRenderData.StaticVertexBuffers != nullptr && LODRenderData.StaticVertexBuffers.PositionVertexBuffer.IsInitialized())
+         UE_LOG(LogTemp, Warning, TEXT("HideOriginalMeshVerticesByBone: Could not get SkinWeightVertexBuffer for LOD %d."), LODIndex);
+        return false;
+    }
+
+    uint32 NumVertices = LODRenderData.GetNumVertices();
+    if (NumVertices == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("HideOriginalMeshVerticesByBone: LOD %d has no vertices."), LODIndex);
+        return false;
+    }
+
+    TArray<int32> VerticesToHideIndices;
+    VerticesToHideIndices.Reserve(NumVertices / 4); // 예상 크기 예약
+
+    // 1. 숨길 버텍스 식별 (GetBoneWeightForVertex 구현 필요)
+    for (uint32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
+    {
+        // GetBoneWeightForVertex 함수는 FSkinWeightVertexBuffer 구조에 맞춰 구현해야 합니다.
+        // 아래는 가상의 함수 호출입니다. 실제 구현은 SkinWeightBuffer->GetWeightForVertex 등을 사용해야 합니다.
+        float Weight = GetBoneWeightForVertex(VertexIndex, TargetBoneIndex, &LODRenderData.RenderSections[LODIndex], &LODRenderData, SkinWeightBuffer);
+
+        if (Weight > Threshold)
         {
-            PositionVertexBuffer = &LODRenderData.StaticVertexBuffers.PositionVertexBuffer;
-            // 정점 개수 일치 확인 (보통 일치하지만, 안전 확인)
-            if (PositionVertexBuffer->GetNumVertices() != NumVertices)
+            VerticesToHideIndices.Add(VertexIndex);
+        }
+    }
+
+    // 2. 숨길 버텍스가 있는 경우에만 오버라이드 적용
+    if (VerticesToHideIndices.Num() > 0)
+    {
+        // 3. 버텍스 컬러 오버라이드 배열 준비
+        TArray<FLinearColor> OverrideColors;
+        OverrideColors.SetNum(NumVertices);
+
+        // 기존 컬러 버퍼 확인
+        const FColorVertexBuffer* ExistingColorBuffer = LODRenderData.StaticVertexBuffers.ColorVertexBuffer.IsInitialized() ?
+                                                        &LODRenderData.StaticVertexBuffers.ColorVertexBuffer : nullptr;
+
+        // 배열 초기화 (기존 색상 또는 흰색)
+        for (uint32 i = 0; i < NumVertices; ++i)
+        {
+            if (ExistingColorBuffer && i < ExistingColorBuffer->GetNumVertices())
             {
-                UE_LOG(LogTemp, Warning, TEXT("LogVerticesInfluencedByBone: Vertex count mismatch! SkinWeightBuffer(%u) vs PositionBuffer(%u). Visualization might be inaccurate."),
-                    NumVertices, PositionVertexBuffer->GetNumVertices());
-                // 필요시 여기서 PositionBufferPtr = nullptr; 로 시각화 비활성화 가능
+                OverrideColors[i] = ExistingColorBuffer->VertexColor(i).ReinterpretAsLinear();
+            }
+            else
+            {
+                OverrideColors[i] = FLinearColor::White; // 기본값 (Alpha = 1)
             }
         }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("LogVerticesInfluencedByBone: PositionVertexBuffer is not available or initialized for LOD %d. Cannot visualize vertices."), LODIndexToLog);
-            bVisualize = false;
-        }
-    }
 
-    const int32 BoneIndexInRefSkeleton = SkelComp->GetBoneIndex(BoneNameToLog);
-    // Retrieve vertex indices for this section
-    TArray<uint32> SectionVertexIndices;
-    LODRenderData.MultiSizeIndexContainer.GetIndexBuffer(SectionVertexIndices);
-    
-    for (const FSkelMeshRenderSection& SkelMeshSection : LODRenderData.RenderSections)
-    {
-        const TArray<FBoneIndexType>& BoneMap = SkelMeshSection.BoneMap;
-        
-        for (uint32 i = SkelMeshSection.BaseIndex; i < static_cast<uint32>(SkelMeshSection.BaseIndex + SkelMeshSection.NumTriangles * 3); i++)
+        // 4. 숨길 버텍스의 알파 값을 0으로 설정
+        for (int32 HideIndex : VerticesToHideIndices)
         {
-            int32 VertexIndex = SectionVertexIndices[i];
-
-            for (int32 InfluenceIdx = 0; InfluenceIdx < MaxInfluences; InfluenceIdx++)
+            if (OverrideColors.IsValidIndex(HideIndex))
             {
-                int32 LocalBoneIndex = SkinWeightBuffer->GetBoneIndex(VertexIndex, InfluenceIdx);
-                if (LocalBoneIndex >= BoneMap.Num()) continue; // Ensure we are within bounds
-
-                int32 GlobalBoneIndex = BoneMap[LocalBoneIndex];
-                float BoneWeight = SkinWeightBuffer->GetBoneWeight(VertexIndex, InfluenceIdx) / 65535.0f;
-
-                FName CurrentBoneName = SkelComp->GetBoneName(GlobalBoneIndex);
-
-                if (GlobalBoneIndex == BoneIndexInRefSkeleton && BoneWeight > 0)
-                {
-                    // 5. Locations 대신 PositionBuffer에서 로컬 위치 가져와서 월드 위치 계산
-                    const FVector3f LocalPos = PositionVertexBuffer->VertexPosition(VertexIndex);
-                    const FVector VertexWorldPosition = SkelComp->GetComponentTransform().TransformPosition(FVector(LocalPos)); // 월드 공간으로 변환
-
-                    // 가중치에 따라 색상 보간 (파랑: 0 ~ 빨강: 1)
-                    FLinearColor ColorA = FLinearColor::Blue;
-                    FLinearColor ColorB = FLinearColor::Red;
-                    FLinearColor VertexColor = ColorA + BoneWeight * (ColorB - ColorA); // 선형 보간
-
-                    // 디버그 포인트 그리기
-                    DrawDebugPoint(
-                        GetWorld(),              // 월드 컨텍스트
-                        VertexWorldPosition,     // 월드 공간 위치
-                        10.0f,                   // 포인트 크기
-                        VertexColor.ToFColor(false), // 색상 (선형 보간 결과를 위해 sRGB=false)
-                        false,                   // 영구 표시 여부
-                        5.0f                     // 표시 시간
-                    );
-                }
+                OverrideColors[HideIndex].A = 0.0f; // 알파를 0으로 만들어 숨김
             }
         }
+
+        // 5. 컴포넌트에 오버라이드 적용
+        SourceSkeletalMeshComp->SetVertexColorOverride_LinearColor(LODIndex, OverrideColors);
+         UE_LOG(LogTemp, Log, TEXT("Applied vertex color override to hide %d vertices for bone '%s' on LOD %d."), VerticesToHideIndices.Num(), *TargetBoneName.ToString(), LODIndex);
+        return true;
     }
+    else if (bClearOverride)
+    {
+        // 숨길 버텍스가 없고, 이전 오버라이드를 지우도록 설정된 경우
+        SourceSkeletalMeshComp->ClearVertexColorOverride(LODIndex);
+        UE_LOG(LogTemp, Log, TEXT("No vertices to hide for bone '%s' on LOD %d. Cleared override (if any)."), *TargetBoneName.ToString(), LODIndex);
+        return true; // 작업은 성공적으로 완료됨 (숨길 것이 없었음)
+    }
+
+    return true; // 숨길 것이 없었음
 }

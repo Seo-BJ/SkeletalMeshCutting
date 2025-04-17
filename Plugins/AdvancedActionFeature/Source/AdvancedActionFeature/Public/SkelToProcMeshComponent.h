@@ -49,6 +49,12 @@ public:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Mesh")
     FName BoneName;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Mesh")
+    FName ProceduralMeshAttachSocketName;
+    
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Mesh")
+    FName OtherHalfMeshAttachSocketName;
     
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     float CreateProceduralMeshDistance;
@@ -65,16 +71,7 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category = "Procedural Mesh")
     bool ConvertSkeletalMeshToProceduralMesh(bool bForceNewPMC, FName TargetBoneName);
-    
-    UFUNCTION(BlueprintCallable, Category = "Procedural Mesh|Debug")
-    void LogVerticesInfluencedByBone(
-        FName BoneNameToLog,
-        int32 LODIndexToLog = 0,
-        float WeightThreshold = 0.001f,
-        bool bVisualize = true,
-        float SphereRadius = 1.5f,
-        FColor SphereColor = FColor::Magenta,
-        float LifeTime = 5.0f);
+
 
 protected:
     // 게임이 시작될 때 호출됩니다.
@@ -87,7 +84,7 @@ private:
     bool SetupProceduralMeshComponent(bool bForceNew);
 
     /** Skeletal Mesh LOD 섹션에서 Procedural Mesh로 메쉬 데이터를 복사하는 함수 */
-    bool CopySkeletalLODToProcedural(const USkeletalMeshComponent* SkelComp, FName TargetBoneName, int32 LODIndex);
+    bool CopySkeletalLODToProcedural(USkeletalMeshComponent* SkelComp, FName TargetBoneName, int32 LODIndex);
 
     /** Skeletal Mesh LOD에서 필요한 데이터 버퍼를 추출하는 함수 */
     bool GetFilteredSkeletalMeshDataByBoneName(
@@ -120,6 +117,19 @@ private:
 
     /** 소유자에서 대상 Skeletal Mesh Component를 찾는 헬퍼 함수 */
     USkeletalMeshComponent* GetOwnerSkeletalMeshComponent() const;
+
+    /**
+     * 원본 스켈레탈 메시 컴포넌트에서 특정 본에 연결된 버텍스들을 숨깁니다.
+     * @param SourceSkeletalMeshComp 숨길 대상 스켈레탈 메시 컴포넌트
+     * @param LODIndex 처리할 LOD 인덱스
+     * @param TargetBoneName 숨길 기준이 되는 본의 이름
+     * @param Threshold 가중치 임계값 (이 값보다 커야 숨김 처리)
+     * @param bClearOverride 숨길 버텍스가 없을 때 이전 오버라이드를 제거할지 여부
+     * @return 성공 여부
+     */
+    
+    bool HideOriginalMeshVerticesByBone(USkeletalMeshComponent* SourceSkeletalMeshComp, int32 LODIndex, FName TargetBoneName, bool bClearOverride = true);
+    
 
 };
 

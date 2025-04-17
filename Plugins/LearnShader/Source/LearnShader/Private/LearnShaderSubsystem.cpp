@@ -7,7 +7,7 @@
 void ULearnShaderSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	CustomSceneViewExtension = FSceneViewExtensions::NewExtension<LearnShaderSceneViewExtension>();
+	// CustomSceneViewExtension = FSceneViewExtensions::NewExtension<LearnShaderSceneViewExtension>();
 }
 
 void ULearnShaderSubsystem::Deinitialize() 
