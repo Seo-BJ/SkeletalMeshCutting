@@ -277,9 +277,9 @@ bool USkelToProcMeshComponent::GetFilteredSkeletalMeshDataByBoneName(const USkel
     uint32 NumVertices = StaticVertexBuffers.PositionVertexBuffer.GetNumVertices(); // 버텍스 수 가져오기
 
     // 버퍼 크기 적절하게 조정
-    // OutNormals.SetNumUninitialized(NumVertices);
-    // OutTangents.SetNumUninitialized(NumVertices);
-    // OutUV0.SetNumUninitialized(NumVertices);
+    //OutNormals.SetNumUninitialized(NumVertices);
+    //OutTangents.SetNumUninitialized(NumVertices);
+    //OutUV0.SetNumUninitialized(NumVertices);
     
     if (bCopyVertexColors && StaticVertexBuffers.ColorVertexBuffer.IsInitialized())
     {

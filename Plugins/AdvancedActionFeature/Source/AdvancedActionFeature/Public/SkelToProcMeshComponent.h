@@ -47,7 +47,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bRecalculateNormals = false; // 변형된 메시의 노멀 품질을 높이려면 true로 설정
 
-    UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Mesh")
     FName BoneName;
     
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
