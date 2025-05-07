@@ -13,29 +13,47 @@ struct FProcMeshTangent;
 class FSkeletalMeshLODRenderData;
 enum class EProcMeshSliceCapOption : uint8;
 
+USTRUCT(BlueprintType)
+struct FProceduralVertexSkinningData
+{
+    GENERATED_BODY()
+
+    // 이 프로시저럴 버텍스에 영향을 주는 원본 스켈레탈 메시의 본 인덱스 배열
+    UPROPERTY()
+    TArray<int32> BoneMapIndices; // 스켈레탈 메쉬의 RefSkeleton 본 인덱스
+
+    // 각 본에 대한 가중치 배열 (BoneMapIndices와 순서 일치)
+    UPROPERTY()
+    TArray<float> BoneWeights;
+
+    // 프로시저럴 메시의 로컬 공간(또는 컴포넌트 공간의 바인드 포즈)에서의 원본 버텍스 위치
+    UPROPERTY()
+    FVector LocalBindPosePosition;
+
+    FProceduralVertexSkinningData() : LocalBindPosePosition(FVector::ZeroVector) {}
+};
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class ADVANCEDACTIONFEATURE_API USkelToProcMeshComponent : public UActorComponent
 {
     GENERATED_BODY()
 
 public:
-    // 이 컴포넌트 속성의 기본값을 설정합니다.
-    USkelToProcMeshComponent();
 
-    // 생성되고 채워질 Procedural Mesh Component 입니다.
-    // 에디터에서 기존 컴포넌트를 선택적으로 할당할 수 있으며, 그렇지 않으면 새로 생성됩니다.
+    USkelToProcMeshComponent();
+    
     UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Procedural Mesh", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UProceduralMeshComponent> ProceduralMeshComponent;
 
-    // 지오메트리를 복사해 올 스켈레탈 메시의 LOD(Level of Detail) 인덱스입니다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh|Runtime Skinning")
+    bool bEnableRuntimeSkinning = false;
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh", meta = (ClampMin = "0"))
     int32 LODIndexToCopy = 0;
-
-    // true이면 게임 시작 시 변환을 자동으로 수행합니다. 그렇지 않으면 ConvertSkeletalMesh를 직접 호출해야 합니다.
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bConvertOnBeginPlay = true;
-
-    // true이면 원본 메시에 버텍스 컬러가 존재하는 경우 복사합니다.
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bCopyVertexColors = true;
     
@@ -58,27 +76,24 @@ public:
     
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     float CreateProceduralMeshDistance;
+
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     float Threshold = 0.01;
+
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     float ImpulseMagnitude = 10000000;
-
     
-    UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
-    int DebugVertexIndex;
-    /**
-     * 소유자의 Skeletal Mesh Component에서 Procedural Mesh Component로 변환을 수행합니다.
-     * ProceduralMeshComponent가 존재하지 않으면 생성합니다.
-     * @param bForceNewPMC true이면 기존 PMC를 파괴하고 새 PMC를 생성합니다.
-     * @return 변환에 성공하면 true, 그렇지 않으면 false를 반환합니다.
-     */
     UFUNCTION(BlueprintCallable, Category = "Procedural Mesh")
     bool ConvertSkeletalMeshToProceduralMesh(bool bForceNewPMC, FName TargetBoneName);
 
+    UFUNCTION(BlueprintCallable, Category = "Procedural Mesh|Runtime Skinning")
+    void UpdateProceduralMeshesSkinning();
 
 protected:
-    // 게임이 시작될 때 호출됩니다.
+
     virtual void BeginPlay() override;
+    virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
 
 private:
 
@@ -90,6 +105,8 @@ private:
     bool CopySkeletalLODToProcedural(USkeletalMeshComponent* SkelComp, FName TargetBoneName, int32 LODIndex);
 
     /** Skeletal Mesh LOD에서 필요한 데이터 버퍼를 추출하는 함수 */
+    // 아래 함수 시그니처 변경: 스키닝 정보 빌드를 위해 OriginalToProcVertexMap을 반환하도록 함
+
     bool GetFilteredSkeletalMeshDataByBoneName(
         const USkeletalMeshComponent* SkelComp,
         FName TargetBoneName,
@@ -101,8 +118,11 @@ private:
         TArray<FVector2D>& OutUV0,          // 출력: UV0 배열
         TArray<FLinearColor>& OutVertexColors, // 출력: 버텍스 컬러 배열
         TArray<int32>& SectionMaterialIndices, // 출력: 각 섹션의 머티리얼 인덱스 배열
-        TArray<TArray<int32>>& SectionIndices // 출력: 각 섹션의 인덱스(트라이앵글) 배열
+        TArray<TArray<int32>>& SectionIndices, // 출력: 각 섹션의 인덱스(트라이앵글) 배열
+        TMap<uint32, uint32>& OutOriginalToProcVertexMap // 이 맵을 채워서 반환
         );
+
+    
 
     bool SliceMesh(
         UProceduralMeshComponent* InProcMesh,
@@ -133,6 +153,65 @@ private:
     
     bool HideOriginalMeshVerticesByBone(USkeletalMeshComponent* SourceSkeletalMeshComp, int32 LODIndex, FName TargetBoneName, bool bClearOverride = true);
     
+  /**
+     * Procedural Mesh 생성을 위해 필터링된 버텍스들의 스키닝 정보를 빌드합니다.
+     * @param SkelComp 소스 스켈레탈 메시 컴포넌트
+     * @param LODIndex 대상 LOD 인덱스
+     * @param InProcMeshVertices 프로시저럴 메쉬를 구성하는 로컬 바인드 포즈상의 버텍스 위치들
+     * @param InOriginalToProcVertexMap 원본 스켈레탈 메쉬 버텍스 인덱스에서 현재 프로시저럴 메쉬의 버텍스 인덱스로의 매핑
+     * @param OutSkinningData 결과를 저장할 스키닝 데이터 배열
+     * @return 성공 여부
+     */
+    bool BuildSkinningDataForProceduralMesh(
+        const USkeletalMeshComponent* SkelComp,
+        int32 LODIndex,
+        const TArray<FVector>& InProcMeshVertices,
+        const TMap<uint32, uint32>& InOriginalToProcVertexMap, // Key: Original SkelMesh VertexIdx, Value: ProcMesh VertexIdx for InProcMeshVertices
+        TArray<FProceduralVertexSkinningData>& OutSkinningData);
+
+    /**
+     * 원본 스켈레탈 메시의 특정 버텍스에 대한 스킨 웨이트 정보를 가져옵니다.
+     * @param SkelComp 소스 스켈레탈 메시 컴포넌트
+     * @param OriginalSkelVertexIndex 스키닝 정보를 가져올 원본 스켈레탈 메시의 버텍스 인덱스
+     * @param LODRenderData 해당 LOD의 렌더 데이터
+     * @param SkinWeightBuffer 스킨 웨이트 버퍼
+     * @param OutVertexSkinningData 결과를 저장할 구조체 (BoneMapIndices, BoneWeights 채워짐)
+     * @return 성공 여부
+     */
+    bool GetSkinWeightsForOriginalVertex(
+        const USkeletalMeshComponent* SkelComp,
+        uint32 OriginalSkelVertexIndex,
+        const FSkeletalMeshLODRenderData& LODRenderData, // 직접 포함 대신 전방선언 후 cpp에서 include
+        const FSkinWeightVertexBuffer* SkinWeightBuffer, // 직접 포함 대신 전방선언 후 cpp에서 include
+        FProceduralVertexSkinningData& OutVertexSkinningData);
+
+
+    // --- 멤버 변수 추가 ---
+
+    // 주 프로시저럴 메시 컴포넌트에 대한 스키닝 데이터
+    UPROPERTY()
+    TArray<FProceduralVertexSkinningData> MainProcMeshSkinningData;
+
+    // 절단된 다른 쪽 프로시저럴 메시 컴포넌트에 대한 스키닝 데이터
+    UPROPERTY()
+    TArray<FProceduralVertexSkinningData> OtherHalfProcMeshSkinningData;
+
+    // 원본 스켈레탈 메시의 각 본에 대한 역 바인드 포즈 변환 행렬 (컴포넌트 공간 기준)
+    UPROPERTY()
+    TArray<FMatrix> RefBoneInverseBindMatrices;
+
+    // 생성된 다른 쪽 프로시저럴 메시 컴포넌트의 참조 (업데이트를 위해 저장)
+    UPROPERTY()
+    TObjectPtr<UProceduralMeshComponent> OtherHalfProceduralMeshComponent;
+
+
+    // GetFilteredSkeletalMeshDataByBoneName에서 생성되는, 원본 스켈레탈 메쉬 버텍스 인덱스 -> Procedural Mesh 버텍스 인덱스 맵.
+    // 스키닝 정보 빌드 시 필요.
+    // Key: Original SkelMesh Vertex Index, Value: ProcMesh Vertex Index (MainProcMesh 용)
+    TMap<uint32, uint32> OriginalToMainProcVertexMap;
+
+    // (OtherHalf 용 맵도 필요하다면 선언. SliceMesh의 결과에 따라 복잡도가 달라짐)
+    // TMap<uint32, uint32> OriginalToOtherHalfProcVertexMap;
 
 };
 
