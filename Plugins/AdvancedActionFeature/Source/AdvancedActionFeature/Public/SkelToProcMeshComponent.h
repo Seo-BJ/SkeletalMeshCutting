@@ -78,11 +78,13 @@ protected:
 
 private:
     
-
-    TMap<uint32, uint32> ProceduralToSkeletalVerticesMap;
+    TMap<uint32, uint32> PMC_SkeletalVerticesMap;
     
-    TMap<int32, int32> SlicedPMC_OriginalPMC_Map;     // Key: 슬라이스된 PMC의 새 (글로벌) 인덱스, Value: 슬라이스 전 PMC의 (로컬) 인덱스
-    TMap<int32, int32> OtherHalfPMC_OrigianlPMC_Map;
+    TMap<int32, int32> SlicedPMC_OriginalPMC_VerticesMap;     
+    TMap<int32, int32> OtherHalfPMC_OrigianlPMC_VerticesMap;
+
+    TMap<int32, float> SlicedPMC_BoneWeightMap;
+    TMap<int32, float> OtherHalfPMC_BoneWeightMap;
     
     // 원본 스켈레탈 메시 컴포넌트에 대한 포인터 (캐싱용)
     TWeakObjectPtr<USkeletalMeshComponent> OwnerSkelComp;
@@ -106,19 +108,9 @@ private:
         TArray<TArray<int32>>& SectionIndices // 출력: 각 섹션의 인덱스(트라이앵글) 배열
         );
     
-    /** 소유자에서 대상 Skeletal Mesh Component를 찾는 헬퍼 함수 */
     USkeletalMeshComponent* GetOwnerSkeletalMeshComponent() const;
 
-    /**
-     * 원본 스켈레탈 메시 컴포넌트에서 특정 본에 연결된 버텍스들을 숨깁니다.
-     * @param SourceSkeletalMeshComp 숨길 대상 스켈레탈 메시 컴포넌트
-     * @param LODIndex 처리할 LOD 인덱스
-     * @param TargetBoneName 숨길 기준이 되는 본의 이름
-     * @param Threshold 가중치 임계값 (이 값보다 커야 숨김 처리)
-     * @param bClearOverride 숨길 버텍스가 없을 때 이전 오버라이드를 제거할지 여부
-     * @return 성공 여부
-     */
-    
+
     bool HideOriginalMeshVerticesByBone(USkeletalMeshComponent* SourceSkeletalMeshComp, bool bClearOverride = true);
 
     /**

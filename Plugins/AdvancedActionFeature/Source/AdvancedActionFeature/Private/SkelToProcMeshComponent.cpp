@@ -53,54 +53,6 @@ bool USkelToProcMeshComponent::SliceMesh(bool bForceNewPMC)
     return bSuccess;
 }
 
-bool USkelToProcMeshComponent::SetupProceduralMeshComponent(bool bForceNew)
-{
-    AActor* Owner = GetOwner();
-    if (!Owner) return false;
-
-    if (bForceNew && ProceduralMeshComponent)
-    {
-        // 강제로 새로 생성하는 경우 기존 PMC 파괴
-        ProceduralMeshComponent->DestroyComponent();
-        ProceduralMeshComponent = nullptr;
-    }
-
-    if (!ProceduralMeshComponent)
-    {
-        // 할당되지 않은 경우 기존 컴포넌트를 먼저 찾아봅니다.
-        ProceduralMeshComponent = Owner->FindComponentByClass<UProceduralMeshComponent>();
-
-        if(!ProceduralMeshComponent)
-        {
-             // 새 PMC 생성
-            ProceduralMeshComponent = NewObject<UProceduralMeshComponent>(Owner, TEXT("GeneratedProceduralMesh"));
-            if (ProceduralMeshComponent)
-            {
-                ProceduralMeshComponent->RegisterComponent();
-                // 원하는 경우 씬 루트나 다른 컴포넌트에 어태치합니다.
-                USceneComponent* OwnerRoot = Owner->GetRootComponent();
-                if(OwnerRoot)
-                {
-                    ProceduralMeshComponent->AttachToComponent(OwnerRoot, FAttachmentTransformRules::KeepRelativeTransform);
-                }
-                UE_LOG(LogTemp, Log, TEXT("SkelToProcMeshComponent: 새 ProceduralMeshComponent를 생성했습니다."));
-            }
-            else
-            {
-                 UE_LOG(LogTemp, Error, TEXT("SkelToProcMeshComponent: ProceduralMeshComponent 생성에 실패했습니다."));
-                 return false;
-            }
-        }
-         else
-        {
-             UE_LOG(LogTemp, Log, TEXT("SkelToProcMeshComponent: 기존 ProceduralMeshComponent를 찾았습니다."));
-        }
-    }
-
-    // 이전 지오메트리 제거
-    ProceduralMeshComponent->ClearAllMeshSections();
-    return (ProceduralMeshComponent != nullptr);
-}
 
 bool USkelToProcMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelComp)
 {
@@ -201,8 +153,8 @@ bool USkelToProcMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCom
         OtherHalfMesh,                // OutOtherHalfProcMesh
         EProcMeshSliceCapOption::CreateNewSectionForCap,                    // EProcMeshSliceCapOption (멤버 변수 또는 로컬 값)
         CapMaterialInterface,         // UMaterialInterface* (멤버 변수 또는 로컬 값)
-        SlicedPMC_OriginalPMC_Map,   // OutSlicedToBaseVertexIndex
-        OtherHalfPMC_OrigianlPMC_Map // OutOtherSlicedToBaseVertexIndex
+        SlicedPMC_OriginalPMC_VerticesMap,   // OutSlicedToBaseVertexIndex
+        OtherHalfPMC_OrigianlPMC_VerticesMap // OutOtherSlicedToBaseVertexIndex
     );
 
 
@@ -216,7 +168,7 @@ bool USkelToProcMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCom
         UE_LOG(LogTemp, Error, TEXT("SliceAndAttach: SliceProceduralMesh completed but OtherHalfMesh is null for bone '%s'."), *TargetBoneName.ToString());
         return false;
     }
-    UE_LOG(LogTemp, Warning, TEXT("%d, %d"), SlicedPMC_OriginalPMC_Map.Num(), OtherHalfPMC_OrigianlPMC_Map.Num());
+    UE_LOG(LogTemp, Warning, TEXT("%d, %d"), SlicedPMC_OriginalPMC_VerticesMap.Num(), OtherHalfPMC_OrigianlPMC_VerticesMap.Num());
     UE_LOG(LogTemp, Log, TEXT("SliceProceduralMesh successful for bone '%s'. OtherHalfMesh component created."), *TargetBoneName.ToString());
 
 
@@ -309,18 +261,18 @@ bool USkelToProcMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCom
 
     UE_LOG(LogTemp, Log, TEXT("Parent SkelComp ragdoll initiated successfully."));
     
-    TMap<int32, float> BoneWeightMap = USlicingSkeletalMeshLibrary::GetBoneWeightsForProceduralVertices(TargetLODIndex, SkelComp, TargetBoneIndexInRefSkeleton, SlicedPMC_OriginalPMC_Map ,ProceduralToSkeletalVerticesMap );
-    TMap<int32, float> OtherBoneWeightMap = USlicingSkeletalMeshLibrary::GetBoneWeightsForProceduralVertices(TargetLODIndex, SkelComp, ParentBoneIndexInRefSkeleton, OtherHalfPMC_OrigianlPMC_Map ,ProceduralToSkeletalVerticesMap );
+    SlicedPMC_BoneWeightMap = USlicingSkeletalMeshLibrary::GetBoneWeightsForProceduralVertices(TargetLODIndex, SkelComp, TargetBoneIndexInRefSkeleton, SlicedPMC_OriginalPMC_VerticesMap ,PMC_SkeletalVerticesMap );
+    OtherHalfPMC_BoneWeightMap = USlicingSkeletalMeshLibrary::GetBoneWeightsForProceduralVertices(TargetLODIndex, SkelComp, ParentBoneIndexInRefSkeleton, OtherHalfPMC_OrigianlPMC_VerticesMap ,PMC_SkeletalVerticesMap );
     
     if (GetWorld()) // World 컨텍스트가 유효한지 확인
     {
         // SlicedPMC (ProceduralMeshComponent, 보통 TargetBone에 부착됨)에 대한 시각화
-        if (ProceduralMeshComponent && BoneWeightMap.Num() > 0)
+        if (ProceduralMeshComponent && SlicedPMC_BoneWeightMap.Num() > 0)
         {
             DrawDebugBoneWeightsOnVertices(
                 GetWorld(),
                 ProceduralMeshComponent,
-                BoneWeightMap,
+                SlicedPMC_BoneWeightMap,
                 FColor::Green, // 이 메쉬 조각은 초록색 계열로
                 false,        // bPersistentLines
                 20.0f          // LifeTime
@@ -329,12 +281,12 @@ bool USkelToProcMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCom
 
         
         // OtherHalfMesh (보통 ParentBone에 부착됨)에 대한 시각화
-        if (OtherHalfMesh && OtherBoneWeightMap.Num() > 0)
+        if (OtherHalfMesh && OtherHalfPMC_BoneWeightMap.Num() > 0)
         {
             DrawDebugBoneWeightsOnVertices(
                 GetWorld(),
                 OtherHalfMesh,
-                OtherBoneWeightMap,
+                OtherHalfPMC_BoneWeightMap,
                 FColor::Magenta, // 이 메쉬 조각은 자홍색 계열로
                 false,          // bPersistentLines
                 20.0f            // LifeTime
@@ -440,7 +392,7 @@ bool USkelToProcMeshComponent::GetFilteredSkeletalMeshDataByBoneName(const USkel
      
                     OutVertices.Add(SkinnedVectorPosition);
 
-                    ProceduralToSkeletalVerticesMap.Add(FilteredVertexIndex, VertexIndex);
+                    PMC_SkeletalVerticesMap.Add(FilteredVertexIndex, VertexIndex);
                     FilteredVertexIndexMap.Add(VertexIndex, FilteredVertexIndex);
                     FilteredVertexIndex += 1;
                     
@@ -739,7 +691,6 @@ void USkelToProcMeshComponent::DrawDebugBoneWeightsOnVertices(const UWorld* InWo
     }
 }
 
-
 USkeletalMeshComponent* USkelToProcMeshComponent::GetOwnerSkeletalMeshComponent() const
 {
     AActor* Owner = GetOwner();
@@ -756,4 +707,53 @@ USkeletalMeshComponent* USkelToProcMeshComponent::GetOwnerSkeletalMeshComponent(
         return nullptr;
     }
     return SkelComp;
+}
+
+bool USkelToProcMeshComponent::SetupProceduralMeshComponent(bool bForceNew)
+{
+    AActor* Owner = GetOwner();
+    if (!Owner) return false;
+
+    if (bForceNew && ProceduralMeshComponent)
+    {
+        // 강제로 새로 생성하는 경우 기존 PMC 파괴
+        ProceduralMeshComponent->DestroyComponent();
+        ProceduralMeshComponent = nullptr;
+    }
+
+    if (!ProceduralMeshComponent)
+    {
+        // 할당되지 않은 경우 기존 컴포넌트를 먼저 찾아봅니다.
+        ProceduralMeshComponent = Owner->FindComponentByClass<UProceduralMeshComponent>();
+
+        if(!ProceduralMeshComponent)
+        {
+            // 새 PMC 생성
+            ProceduralMeshComponent = NewObject<UProceduralMeshComponent>(Owner, TEXT("GeneratedProceduralMesh"));
+            if (ProceduralMeshComponent)
+            {
+                ProceduralMeshComponent->RegisterComponent();
+                // 원하는 경우 씬 루트나 다른 컴포넌트에 어태치합니다.
+                USceneComponent* OwnerRoot = Owner->GetRootComponent();
+                if(OwnerRoot)
+                {
+                    ProceduralMeshComponent->AttachToComponent(OwnerRoot, FAttachmentTransformRules::KeepRelativeTransform);
+                }
+                UE_LOG(LogTemp, Log, TEXT("SkelToProcMeshComponent: 새 ProceduralMeshComponent를 생성했습니다."));
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("SkelToProcMeshComponent: ProceduralMeshComponent 생성에 실패했습니다."));
+                return false;
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Log, TEXT("SkelToProcMeshComponent: 기존 ProceduralMeshComponent를 찾았습니다."));
+        }
+    }
+
+    // 이전 지오메트리 제거
+    ProceduralMeshComponent->ClearAllMeshSections();
+    return (ProceduralMeshComponent != nullptr);
 }

@@ -8,11 +8,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e2cb7a5e-445f-4d26-9b4a-ef9aa10d1f20" name="변경" comment="">
-      <change afterPath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Source/AdvancedActionFeature/Private/SlicingSkeletalMeshLibrary.cpp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Source/AdvancedActionFeature/Public/SlicingSkeletalMeshLibrary.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/.idea.SkeletalMeshCutting.dir/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.SkeletalMeshCutting.dir/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Config/DefaultAdvancedActionFeature.ini" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Config/DefaultAdvancedActionFeature.ini" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Source/AdvancedActionFeature/Private/SkelToProcMeshComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Source/AdvancedActionFeature/Private/SkelToProcMeshComponent.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Source/AdvancedActionFeature/Public/SkelToProcMeshComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Source/AdvancedActionFeature/Public/SkelToProcMeshComponent.h" afterDir="false" />
     </list>
@@ -240,7 +236,7 @@
       <workItem from="1746601705776" duration="7530000" />
       <workItem from="1746619136037" duration="4159000" />
       <workItem from="1746623941848" duration="1972000" />
-      <workItem from="1746669876452" duration="11640000" />
+      <workItem from="1746669876452" duration="12880000" />
     </task>
     <servers />
   </component>
