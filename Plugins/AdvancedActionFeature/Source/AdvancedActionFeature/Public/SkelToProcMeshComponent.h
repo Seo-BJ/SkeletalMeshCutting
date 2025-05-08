@@ -19,19 +19,19 @@ class ADVANCEDACTIONFEATURE_API USkelToProcMeshComponent : public UActorComponen
     GENERATED_BODY()
 
 public:
-    // 이 컴포넌트 속성의 기본값을 설정합니다.
-    USkelToProcMeshComponent();
 
-    // 생성되고 채워질 Procedural Mesh Component 입니다.
-    // 에디터에서 기존 컴포넌트를 선택적으로 할당할 수 있으며, 그렇지 않으면 새로 생성됩니다.
+    USkelToProcMeshComponent();
+    
     UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Procedural Mesh", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UProceduralMeshComponent> ProceduralMeshComponent;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Procedural Mesh", meta = (AllowPrivateAccess = "true"))
+    UProceduralMeshComponent* OtherHalfProceduralMeshComponent = nullptr;
+    
     // 지오메트리를 복사해 올 스켈레탈 메시의 LOD(Level of Detail) 인덱스입니다.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh", meta = (ClampMin = "0"))
-    int32 LODIndexToCopy = 0;
+    int32 TargetLODIndex = 0;
 
-    // true이면 게임 시작 시 변환을 자동으로 수행합니다. 그렇지 않으면 ConvertSkeletalMesh를 직접 호출해야 합니다.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bConvertOnBeginPlay = true;
 
@@ -48,21 +48,16 @@ public:
     bool bRecalculateNormals = false; // 변형된 메시의 노멀 품질을 높이려면 true로 설정
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Mesh")
-    FName BoneName;
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Mesh")
-    FName ProceduralMeshAttachSocketName;
-    
-    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Mesh")
-    FName OtherHalfMeshAttachSocketName;
+    FName TargetBoneName;
     
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     float CreateProceduralMeshDistance;
+
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     float Threshold = 0.01;
+
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     float ImpulseMagnitude = 10000000;
-
     
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     int DebugVertexIndex;
@@ -73,28 +68,35 @@ public:
      * @return 변환에 성공하면 true, 그렇지 않으면 false를 반환합니다.
      */
     UFUNCTION(BlueprintCallable, Category = "Procedural Mesh")
-    bool ConvertSkeletalMeshToProceduralMesh(bool bForceNewPMC, FName TargetBoneName);
+    bool SliceMesh(bool bForceNewPMC);
 
 
 protected:
-    // 게임이 시작될 때 호출됩니다.
+    
     virtual void BeginPlay() override;
+    virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
+    
 
-
+    TMap<uint32, uint32> ProceduralToSkeletalVerticesMap;
+    
+    TMap<int32, int32> SlicedPMC_OriginalPMC_Map;     // Key: 슬라이스된 PMC의 새 (글로벌) 인덱스, Value: 슬라이스 전 PMC의 (로컬) 인덱스
+    TMap<int32, int32> OtherHalfPMC_OrigianlPMC_Map;
+    
+    // 원본 스켈레탈 메시 컴포넌트에 대한 포인터 (캐싱용)
+    TWeakObjectPtr<USkeletalMeshComponent> OwnerSkelComp;
+    
     /** Procedural Mesh Component를 가져오거나 생성하는 헬퍼 함수 */
     bool SetupProceduralMeshComponent(bool bForceNew);
 
     /** Skeletal Mesh LOD 섹션에서 Procedural Mesh로 메쉬 데이터를 복사하는 함수 */
-    bool CopySkeletalLODToProcedural(USkeletalMeshComponent* SkelComp, FName TargetBoneName, int32 LODIndex);
+    bool SliceMeshInternal(USkeletalMeshComponent* SkelComp);
 
     /** Skeletal Mesh LOD에서 필요한 데이터 버퍼를 추출하는 함수 */
     bool GetFilteredSkeletalMeshDataByBoneName(
         const USkeletalMeshComponent* SkelComp,
-        FName TargetBoneName,
         float MinWeight,
-        int32 LODIndex,
         TArray<FVector>& OutVertices,       // 출력: 버텍스 위치 배열
         TArray<FVector>& OutNormals,        // 출력: 노멀 배열
         TArray<FProcMeshTangent>& OutTangents, // 출력: 탄젠트 배열
@@ -103,21 +105,7 @@ private:
         TArray<int32>& SectionMaterialIndices, // 출력: 각 섹션의 머티리얼 인덱스 배열
         TArray<TArray<int32>>& SectionIndices // 출력: 각 섹션의 인덱스(트라이앵글) 배열
         );
-
-    bool SliceMesh(
-        UProceduralMeshComponent* InProcMesh,
-        FVector PlanePosition,
-        FVector PlaneNormal,
-        bool bCreateOtherHalf,
-        UProceduralMeshComponent*& OutOtherHalfProcMesh,
-        EProcMeshSliceCapOption CapOption,
-        UMaterialInterface* CapMaterial
-        );
-
-
     
-    float GetBoneWeightForVertex(int32 VertexIndex, int32 TargetBoneIndex,  const FSkelMeshRenderSection* SkelMeshRenderSection, const FSkeletalMeshLODRenderData* LODRenderData, const FSkinWeightVertexBuffer* SkinWeightBuffer);
-
     /** 소유자에서 대상 Skeletal Mesh Component를 찾는 헬퍼 함수 */
     USkeletalMeshComponent* GetOwnerSkeletalMeshComponent() const;
 
@@ -131,8 +119,28 @@ private:
      * @return 성공 여부
      */
     
-    bool HideOriginalMeshVerticesByBone(USkeletalMeshComponent* SourceSkeletalMeshComp, int32 LODIndex, FName TargetBoneName, bool bClearOverride = true);
-    
+    bool HideOriginalMeshVerticesByBone(USkeletalMeshComponent* SourceSkeletalMeshComp, bool bClearOverride = true);
+
+    /**
+   * Procedural Mesh의 버텍스 Bone Weight를 디버그 시각화합니다.
+   * @param InWorld 현재 월드 컨텍스트.
+   * @param InProcMeshComponent 시각화할 Procedural Mesh Component.
+   * @param BoneWeightsMap 해당 Procedural Mesh의 버텍스 인덱스와 Bone Weight를 매핑한 TMap.
+   * @param DebugColor 시각화에 사용할 기본 색상.
+   * @param bPersistentLines 디버그 라인이 한 프레임 이상 지속될지 여부.
+   * @param LifeTime 디버그 라인/스피어의 지속 시간 (bPersistentLines가 false일 때).
+   * @param SphereRadius 디버그 스피어의 반지름.
+   */
+    UFUNCTION(BlueprintCallable, Category = "SkelToProcMesh|Debug")
+    void DrawDebugBoneWeightsOnVertices(
+        const UWorld* InWorld,
+        UProceduralMeshComponent* InProcMeshComponent,
+        const TMap<int32, float>& BoneWeightsMap,
+        FColor DebugColor = FColor::Yellow,
+        bool bPersistentLines = false,
+        float LifeTime = 0.f,
+        float SphereRadius = 1.0f
+    ) const;
 
 };
 
