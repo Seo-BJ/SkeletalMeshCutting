@@ -91,6 +91,8 @@ protected:
     virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
+    FName AttachBoneForOtherHalf;
+    FName AttachBoneForOriginalPMC;
     
     TMap<uint32, uint32> PMC_SkeletalVerticesMap;
     
@@ -151,7 +153,7 @@ private:
     ) const;
     
 
-    void PerformVertexSkinning();
+    void PerformVertexSkinning(UProceduralMeshComponent* ProcMesh, FName AttachBoneName);
 };
 
 
