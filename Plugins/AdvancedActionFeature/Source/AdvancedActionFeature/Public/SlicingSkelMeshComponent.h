@@ -3,9 +3,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ProceduralMeshComponent.h"
 #include "Components/ActorComponent.h"
 
-#include "SkelToProcMeshComponent.generated.h"
+#include "SlicingSkelMeshComponent.generated.h"
 
 class USkeletalMeshComponent;
 class UProceduralMeshComponent;
@@ -13,14 +14,24 @@ struct FProcMeshTangent;
 class FSkeletalMeshLODRenderData;
 enum class EProcMeshSliceCapOption : uint8;
 
+USTRUCT()
+struct FBoneWeightsInfo
+{
+    GENERATED_BODY()
+
+    TArray<int32> InfluencingBoneIndices;
+
+    TArray<float> BoneWeights;
+    
+};
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class ADVANCEDACTIONFEATURE_API USkelToProcMeshComponent : public UActorComponent
+class ADVANCEDACTIONFEATURE_API USlicingSkelMeshComponent : public UActorComponent
 {
     GENERATED_BODY()
 
 public:
 
-    USkelToProcMeshComponent();
+    USlicingSkelMeshComponent();
     
     UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Procedural Mesh", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UProceduralMeshComponent> ProceduralMeshComponent;
@@ -35,6 +46,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bConvertOnBeginPlay = true;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
+    bool bDrawDebug = false;
+
     // true이면 원본 메시에 버텍스 컬러가 존재하는 경우 복사합니다.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bCopyVertexColors = true;
@@ -48,7 +62,9 @@ public:
     bool bRecalculateNormals = false; // 변형된 메시의 노멀 품질을 높이려면 true로 설정
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Mesh")
-    FName TargetBoneName;
+    FName TargetBoneName = NAME_None;
+
+    FName ParentBoneName= NAME_None;
     
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     float CreateProceduralMeshDistance;
@@ -61,15 +77,10 @@ public:
     
     UPROPERTY(EditDefaultsOnly, Category = "Procedural Mesh")
     int DebugVertexIndex;
-    /**
-     * 소유자의 Skeletal Mesh Component에서 Procedural Mesh Component로 변환을 수행합니다.
-     * ProceduralMeshComponent가 존재하지 않으면 생성합니다.
-     * @param bForceNewPMC true이면 기존 PMC를 파괴하고 새 PMC를 생성합니다.
-     * @return 변환에 성공하면 true, 그렇지 않으면 false를 반환합니다.
-     */
+
+    
     UFUNCTION(BlueprintCallable, Category = "Procedural Mesh")
     bool SliceMesh(bool bForceNewPMC);
-
 
 protected:
     
@@ -85,9 +96,12 @@ private:
 
     TMap<int32, float> SlicedPMC_BoneWeightMap;
     TMap<int32, float> OtherHalfPMC_BoneWeightMap;
+
+    TMap<INT32, FBoneWeightsInfo> SlicedPMC_BoneWeightsMap;
+    TMap<INT32, FBoneWeightsInfo> OtherHalfPMC_BoneWeightsMap;
     
     // 원본 스켈레탈 메시 컴포넌트에 대한 포인터 (캐싱용)
-    TWeakObjectPtr<USkeletalMeshComponent> OwnerSkelComp;
+    // TWeakObjectPtr<USkeletalMeshComponent> OwnerSkelComp;
     
     /** Procedural Mesh Component를 가져오거나 생성하는 헬퍼 함수 */
     bool SetupProceduralMeshComponent(bool bForceNew);
@@ -123,7 +137,6 @@ private:
    * @param LifeTime 디버그 라인/스피어의 지속 시간 (bPersistentLines가 false일 때).
    * @param SphereRadius 디버그 스피어의 반지름.
    */
-    UFUNCTION(BlueprintCallable, Category = "SkelToProcMesh|Debug")
     void DrawDebugBoneWeightsOnVertices(
         const UWorld* InWorld,
         UProceduralMeshComponent* InProcMeshComponent,
@@ -133,6 +146,7 @@ private:
         float LifeTime = 0.f,
         float SphereRadius = 1.0f
     ) const;
+    
 
 };
 

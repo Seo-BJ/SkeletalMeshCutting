@@ -322,7 +322,6 @@ void USlicingSkeletalMeshLibrary::SliceProceduralMesh(UProceduralMeshComponent* 
 					for (int32 BaseVertIndex = 0; BaseVertIndex < NumBaseVerts; BaseVertIndex++)
 					{
 						FProcMeshVertex& BaseVert = BaseSection->ProcVertexBuffer[BaseVertIndex];
-
 						// Calc distance from plane
 						VertDistance[BaseVertIndex] = SlicePlane.PlaneDot(BaseVert.Position);
 
@@ -722,7 +721,7 @@ float USlicingSkeletalMeshLibrary::GetBoneWeightForVertex(int32 VertexIndex, int
 
 
 
-TMap<int32, float> USlicingSkeletalMeshLibrary::GetBoneWeightsForProceduralVertices(
+TMap<int32, float> USlicingSkeletalMeshLibrary::GetBoneWeightMapForProceduralVertices(
 	const int32 TargetLODIndex,
     const USkeletalMeshComponent* InSkelComp,
     int32 TargetGlobalBoneIndex,
@@ -734,27 +733,27 @@ TMap<int32, float> USlicingSkeletalMeshLibrary::GetBoneWeightsForProceduralVerti
 
     if (!InSkelComp || !InSkelComp->GetSkeletalMeshAsset() || TargetGlobalBoneIndex == INDEX_NONE)
     {
-        UE_LOG(LogTemp, Error, TEXT("GetBoneWeightsForProceduralVertices: Invalid input SkelComp or TargetGlobalBoneIndex."));
+        UE_LOG(LogTemp, Error, TEXT("GetBoneWeightMapForProceduralVertices: Invalid input SkelComp or TargetGlobalBoneIndex."));
         return BoneWeightsMap;
     }
 
     const FSkeletalMeshRenderData* SkelMeshRenderData = InSkelComp->GetSkeletalMeshRenderData();
     if (!SkelMeshRenderData || SkelMeshRenderData->LODRenderData.Num() == 0)
     {
-        UE_LOG(LogTemp, Error, TEXT("GetBoneWeightsForProceduralVertices: No SkeletalMeshRenderData or LODRenderData found."));
+        UE_LOG(LogTemp, Error, TEXT("GetBoneWeightMapForProceduralVertices: No SkeletalMeshRenderData or LODRenderData found."));
         return BoneWeightsMap;
     }
 
     if (!SkelMeshRenderData->LODRenderData.IsValidIndex(TargetLODIndex)) // TargetLODIndex는 멤버 변수로 가정
     {
-        UE_LOG(LogTemp, Error, TEXT("GetBoneWeightsForProceduralVertices: TargetLODIndex %d is invalid."), TargetLODIndex);
+        UE_LOG(LogTemp, Error, TEXT("GetBoneWeightMapForProceduralVertices: TargetLODIndex %d is invalid."), TargetLODIndex);
         return BoneWeightsMap;
     }
     const FSkeletalMeshLODRenderData& LODRenderData = SkelMeshRenderData->LODRenderData[TargetLODIndex];
     const FSkinWeightVertexBuffer* SkinWeightBuffer = LODRenderData.GetSkinWeightVertexBuffer();
     if (!SkinWeightBuffer)
     {
-        UE_LOG(LogTemp, Error, TEXT("GetBoneWeightsForProceduralVertices: SkinWeightBuffer is null for LOD %d."), TargetLODIndex);
+        UE_LOG(LogTemp, Error, TEXT("GetBoneWeightMapForProceduralVertices: SkinWeightBuffer is null for LOD %d."), TargetLODIndex);
         return BoneWeightsMap;
     }
 
@@ -793,16 +792,17 @@ TMap<int32, float> USlicingSkeletalMeshLibrary::GetBoneWeightsForProceduralVerti
             }
             
             if (!bFoundSection) {
-                 UE_LOG(LogTemp, Warning, TEXT("GetBoneWeightsForProceduralVertices: Could not find render section for original skeletal vertex index: %u (from PreSlicePMCLocalIdx: %d)"), OriginalSkelGlobalVertexIndex, PreSlicePMCLocalIdx);
+                 UE_LOG(LogTemp, Warning, TEXT("GetBoneWeightMapForProceduralVertices: Could not find render section for original skeletal vertex index: %u (from PreSlicePMCLocalIdx: %d)"), OriginalSkelGlobalVertexIndex, PreSlicePMCLocalIdx);
             }
             BoneWeightsMap.Add(NewPMCVertIdx, BoneWeight); // GetBoneWeightForVertex가 0.f를 반환하면 그대로 사용
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("GetBoneWeightsForProceduralVertices: Could not find original skeletal mesh vertex in OriginalPmcToSkeletal map for PreSlicePMCLocalIdx: %d. New PMC Vert Idx: %d"), PreSlicePMCLocalIdx, NewPMCVertIdx);
+            UE_LOG(LogTemp, Warning, TEXT("GetBoneWeightMapForProceduralVertices: Could not find original skeletal mesh vertex in OriginalPmcToSkeletal map for PreSlicePMCLocalIdx: %d. New PMC Vert Idx: %d"), PreSlicePMCLocalIdx, NewPMCVertIdx);
             BoneWeightsMap.Add(NewPMCVertIdx, 0.f);
         }
     }
 
     return BoneWeightsMap;
 }
+

@@ -52,13 +52,11 @@ public:
 	  * @param OriginalSkelToPreSlicePMCMap GetFilteredSkeletalMeshDataByBoneName에서 생성된 맵. Key: 원본 스켈레탈 메쉬 글로벌 인덱스, Value: 슬라이스 전 PMC 로컬 인덱스.
 	  * @return TMap<int32, float> Key: 새 PMC 버텍스 인덱스, Value: 해당 버텍스의 TargetGlobalBoneIndex에 대한 Bone Weight.
 	  */
-	static TMap<int32, float> GetBoneWeightsForProceduralVertices(
+	static TMap<int32, float> GetBoneWeightMapForProceduralVertices(
 	const int32 TargetLODIndex,
 	const USkeletalMeshComponent* InSkelComp,
 	int32 TargetGlobalBoneIndex,
 	const TMap<int32, int32>& SlicePmcToOriginalPmc,
 	const TMap<uint32, uint32>& OriginalPmcToSkeletal) ;
-	
-
 
 };

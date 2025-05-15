@@ -1,4 +1,4 @@
-#include "SkelToProcMeshComponent.h"
+#include "SlicingSkelMeshComponent.h"
 
 #include "KismetProceduralMeshLibrary.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -13,14 +13,15 @@
 
 
 #include "GeomTools.h"
+#include "MeshAttributes.h"
 
-USkelToProcMeshComponent::USkelToProcMeshComponent()
+USlicingSkelMeshComponent::USlicingSkelMeshComponent()
 {
     PrimaryComponentTick.bCanEverTick = true; // 틱 활성화
     PrimaryComponentTick.bStartWithTickEnabled = true;
 }
 
-void USkelToProcMeshComponent::BeginPlay()
+void USlicingSkelMeshComponent::BeginPlay()
 {
     Super::BeginPlay();
 
@@ -30,13 +31,15 @@ void USkelToProcMeshComponent::BeginPlay()
     }
 }
 
-void USkelToProcMeshComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void USlicingSkelMeshComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+    // PMCVerticesSkinning();
 }
 
 
-bool USkelToProcMeshComponent::SliceMesh(bool bForceNewPMC)
+bool USlicingSkelMeshComponent::SliceMesh(bool bForceNewPMC)
 {
     USkeletalMeshComponent* SkelComp = GetOwnerSkeletalMeshComponent();
     if (!SkelComp || !SkelComp->GetSkeletalMeshAsset() || !SkelComp->GetSkeletalMeshAsset()->GetResourceForRendering()) return false;
@@ -54,7 +57,7 @@ bool USkelToProcMeshComponent::SliceMesh(bool bForceNewPMC)
 }
 
 
-bool USkelToProcMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelComp)
+bool USlicingSkelMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelComp)
 {
     // --- 1. 메쉬 데이터 추출 ---
     TArray<FVector> Vertices;           // 버텍스 위치 배열
@@ -142,29 +145,22 @@ bool USkelToProcMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCom
     {
         UE_LOG(LogTemp, Warning, TEXT("SliceAndAttach: Got ZeroVector for Bone '%s' location. Ensure this is correct."), *TargetBoneName.ToString());
     }
-
-    UProceduralMeshComponent* OtherHalfMesh = nullptr;
+    
     
     USlicingSkeletalMeshLibrary::SliceProceduralMesh(
         ProceduralMeshComponent,      // InProcMesh: 우리가 방금 채운 PMC
         BoneLocation,                 // PlanePosition
         FVector::UpVector,             // PlaneNormal: 멤버 변수 또는 적절히 계산된 값 사용 (예: FVector::UpVector)
         true,                         // bCreateOtherHalf
-        OtherHalfMesh,                // OutOtherHalfProcMesh
+        OtherHalfProceduralMeshComponent,                // OutOtherHalfProcMesh
         EProcMeshSliceCapOption::CreateNewSectionForCap,                    // EProcMeshSliceCapOption (멤버 변수 또는 로컬 값)
         CapMaterialInterface,         // UMaterialInterface* (멤버 변수 또는 로컬 값)
         SlicedPMC_OriginalPMC_VerticesMap,   // OutSlicedToBaseVertexIndex
         OtherHalfPMC_OrigianlPMC_VerticesMap // OutOtherSlicedToBaseVertexIndex
     );
-
-
-    if (OtherHalfMesh == nullptr)
-    {
-        UE_LOG(LogTemp, Error, TEXT("SliceAndAttach: SliceProceduralMesh failed for bone '%s'. ProceduralMeshComponent or OtherHalfMesh might be invalid."), *TargetBoneName.ToString());
-        return false;
-    }
     
-    if (!OtherHalfMesh) {
+    
+    if (!OtherHalfProceduralMeshComponent) {
         UE_LOG(LogTemp, Error, TEXT("SliceAndAttach: SliceProceduralMesh completed but OtherHalfMesh is null for bone '%s'."), *TargetBoneName.ToString());
         return false;
     }
@@ -183,12 +179,11 @@ bool USkelToProcMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCom
 
     // --- 3. PMC 조각들 설정 및 부착 ---
     ProceduralMeshComponent->SetSimulatePhysics(false);
-    OtherHalfMesh->SetSimulatePhysics(false);
+    OtherHalfProceduralMeshComponent->SetSimulatePhysics(false);
     ProceduralMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    OtherHalfMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    OtherHalfProceduralMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
     // --- 부모 본 이름 가져오기 ---
-    FName ParentBoneName = NAME_None;
     int32 TargetBoneIndexInRefSkeleton = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton().FindBoneIndex(TargetBoneName);
     int32 ParentBoneIndexInRefSkeleton = INDEX_NONE;
     if (TargetBoneIndexInRefSkeleton != INDEX_NONE)
@@ -244,7 +239,7 @@ bool USkelToProcMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCom
     // ProceduralMeshComponent->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, AttachBoneForOriginalPMC);
     // OtherHalfMesh->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, AttachBoneForOtherHalf);
 
-    OtherHalfMesh->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, AttachBoneForOtherHalf);
+    OtherHalfProceduralMeshComponent->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, AttachBoneForOtherHalf);
     ProceduralMeshComponent->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, AttachBoneForOriginalPMC);
     
     // --- 4. 부모 스켈레탈 메쉬 컴포넌트 레그돌화 ---
@@ -261,10 +256,10 @@ bool USkelToProcMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCom
 
     UE_LOG(LogTemp, Log, TEXT("Parent SkelComp ragdoll initiated successfully."));
     
-    SlicedPMC_BoneWeightMap = USlicingSkeletalMeshLibrary::GetBoneWeightsForProceduralVertices(TargetLODIndex, SkelComp, TargetBoneIndexInRefSkeleton, SlicedPMC_OriginalPMC_VerticesMap ,PMC_SkeletalVerticesMap );
-    OtherHalfPMC_BoneWeightMap = USlicingSkeletalMeshLibrary::GetBoneWeightsForProceduralVertices(TargetLODIndex, SkelComp, ParentBoneIndexInRefSkeleton, OtherHalfPMC_OrigianlPMC_VerticesMap ,PMC_SkeletalVerticesMap );
+    SlicedPMC_BoneWeightMap = USlicingSkeletalMeshLibrary::GetBoneWeightMapForProceduralVertices(TargetLODIndex, SkelComp, TargetBoneIndexInRefSkeleton, SlicedPMC_OriginalPMC_VerticesMap ,PMC_SkeletalVerticesMap );
+    OtherHalfPMC_BoneWeightMap = USlicingSkeletalMeshLibrary::GetBoneWeightMapForProceduralVertices(TargetLODIndex, SkelComp, ParentBoneIndexInRefSkeleton, OtherHalfPMC_OrigianlPMC_VerticesMap ,PMC_SkeletalVerticesMap );
     
-    if (GetWorld()) // World 컨텍스트가 유효한지 확인
+    if (GetWorld() && bDrawDebug) // World 컨텍스트가 유효한지 확인
     {
         // SlicedPMC (ProceduralMeshComponent, 보통 TargetBone에 부착됨)에 대한 시각화
         if (ProceduralMeshComponent && SlicedPMC_BoneWeightMap.Num() > 0)
@@ -281,11 +276,11 @@ bool USkelToProcMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCom
 
         
         // OtherHalfMesh (보통 ParentBone에 부착됨)에 대한 시각화
-        if (OtherHalfMesh && OtherHalfPMC_BoneWeightMap.Num() > 0)
+        if (OtherHalfProceduralMeshComponent && OtherHalfPMC_BoneWeightMap.Num() > 0)
         {
             DrawDebugBoneWeightsOnVertices(
                 GetWorld(),
-                OtherHalfMesh,
+                OtherHalfProceduralMeshComponent,
                 OtherHalfPMC_BoneWeightMap,
                 FColor::Magenta, // 이 메쉬 조각은 자홍색 계열로
                 false,          // bPersistentLines
@@ -299,7 +294,7 @@ bool USkelToProcMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCom
 }
 
 
-bool USkelToProcMeshComponent::GetFilteredSkeletalMeshDataByBoneName(const USkeletalMeshComponent* SkelComp, float MinWeight, TArray<FVector>& OutVertices,
+bool USlicingSkelMeshComponent::GetFilteredSkeletalMeshDataByBoneName(const USkeletalMeshComponent* SkelComp, float MinWeight, TArray<FVector>& OutVertices,
     TArray<FVector>& OutNormals, TArray<FProcMeshTangent>& OutTangents, TArray<FVector2D>& OutUV0, TArray<FLinearColor>& OutVertexColors,
     TArray<int32>& OutSectionMaterialIndices, TArray<TArray<int32>>& OutSectionIndices)
 {
@@ -513,7 +508,7 @@ bool USkelToProcMeshComponent::GetFilteredSkeletalMeshDataByBoneName(const USkel
 }
 
 
-bool USkelToProcMeshComponent::HideOriginalMeshVerticesByBone(USkeletalMeshComponent* SourceSkeletalMeshComp, bool bClearOverride)
+bool USlicingSkelMeshComponent::HideOriginalMeshVerticesByBone(USkeletalMeshComponent* SourceSkeletalMeshComp, bool bClearOverride)
 {
     if (!SourceSkeletalMeshComp || !SourceSkeletalMeshComp->GetSkeletalMeshAsset())
     {
@@ -622,7 +617,7 @@ bool USkelToProcMeshComponent::HideOriginalMeshVerticesByBone(USkeletalMeshCompo
 }
 
 
-void USkelToProcMeshComponent::DrawDebugBoneWeightsOnVertices(const UWorld* InWorld, UProceduralMeshComponent* InProcMeshComponent,
+void USlicingSkelMeshComponent::DrawDebugBoneWeightsOnVertices(const UWorld* InWorld, UProceduralMeshComponent* InProcMeshComponent,
     const TMap<int32, float>& BoneWeightsMap, FColor DebugColor, bool bPersistentLines, float LifeTime, float SphereRadius ) const
 {
       if (!InWorld || !InProcMeshComponent || BoneWeightsMap.Num() == 0)
@@ -635,7 +630,7 @@ void USkelToProcMeshComponent::DrawDebugBoneWeightsOnVertices(const UWorld* InWo
     // BoneWeightsMap (글로벌 PMC 버텍스 인덱스 -> BoneWeight)을 순회합니다.
     for (const auto& Pair : BoneWeightsMap)
     {
-        int32 GlobalVertexIndex = Pair.Key;
+        int32 VertexIndex = Pair.Key;
         float BoneWeight = Pair.Value;
 
         if (BoneWeight < 0.f) BoneWeight = 0.f; // -1 (캡 버텍스 등)은 가중치 0으로 간주
@@ -649,17 +644,14 @@ void USkelToProcMeshComponent::DrawDebugBoneWeightsOnVertices(const UWorld* InWo
         {
             const FProcMeshSection* ProcSection = InProcMeshComponent->GetProcMeshSection(SectionIndex);
             if (!ProcSection) continue;
-
-            if (GlobalVertexIndex >= VertexCountSoFar && GlobalVertexIndex < (VertexCountSoFar + ProcSection->ProcVertexBuffer.Num()))
+            
+            if (ProcSection->ProcVertexBuffer.IsValidIndex(VertexIndex))
             {
-                int32 LocalIndexInSection = GlobalVertexIndex - VertexCountSoFar;
-                if (ProcSection->ProcVertexBuffer.IsValidIndex(LocalIndexInSection))
-                {
-                    VertexLocalPosition = ProcSection->ProcVertexBuffer[LocalIndexInSection].Position;
-                    bFoundVertex = true;
-                    break; // 해당 버텍스를 찾았으므로 섹션 루프 중단
-                }
+                VertexLocalPosition = ProcSection->ProcVertexBuffer[VertexIndex].Position;
+                bFoundVertex = true;
+                break; // 해당 버텍스를 찾았으므로 섹션 루프 중단
             }
+            
             VertexCountSoFar += ProcSection->ProcVertexBuffer.Num();
         }
 
@@ -686,12 +678,13 @@ void USkelToProcMeshComponent::DrawDebugBoneWeightsOnVertices(const UWorld* InWo
         else
         {
             // 이론적으로 이 경우는 발생하지 않아야 함 (BoneWeightsMap의 인덱스가 유효하다면)
-            UE_LOG(LogTemp, Warning, TEXT("DrawDebugBoneWeightsOnVertices: Could not find vertex position for global index %d in ProcMeshComponent %s"), GlobalVertexIndex, *InProcMeshComponent->GetName());
+            UE_LOG(LogTemp, Warning, TEXT("DrawDebugBoneWeightsOnVertices: Could not find vertex position for global index %d in ProcMeshComponent %s"), VertexIndex, *InProcMeshComponent->GetName());
         }
     }
 }
 
-USkeletalMeshComponent* USkelToProcMeshComponent::GetOwnerSkeletalMeshComponent() const
+
+USkeletalMeshComponent* USlicingSkelMeshComponent::GetOwnerSkeletalMeshComponent() const
 {
     AActor* Owner = GetOwner();
     if (!Owner) return nullptr;
@@ -709,7 +702,7 @@ USkeletalMeshComponent* USkelToProcMeshComponent::GetOwnerSkeletalMeshComponent(
     return SkelComp;
 }
 
-bool USkelToProcMeshComponent::SetupProceduralMeshComponent(bool bForceNew)
+bool USlicingSkelMeshComponent::SetupProceduralMeshComponent(bool bForceNew)
 {
     AActor* Owner = GetOwner();
     if (!Owner) return false;
