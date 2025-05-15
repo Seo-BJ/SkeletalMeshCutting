@@ -44,6 +44,12 @@ public:
 	static float GetBoneWeightForVertex(int32 VertexIndex, int32 TargetBoneIndex, const FSkelMeshRenderSection* SkelMeshRenderSection,
 		const FSkeletalMeshLODRenderData* LODRenderData, const FSkinWeightVertexBuffer* SkinWeightBuffer);
 
+
+
+	static TArray<float> GetBoneWeightsForVertex(int32 VertexIndex,
+	const FSkelMeshRenderSection* SkelMeshRenderSection, const FSkeletalMeshLODRenderData* LODRenderData,
+	const FSkinWeightVertexBuffer* SkinWeightBuffer);
+	
 	/**
 	  * 특정 Procedural Mesh의 버텍스들에 대해 지정된 본의 Bone Weight를 계산합니다.
 	  * @param InSkelComp 원본 스켈레탈 메쉬 컴포넌트.

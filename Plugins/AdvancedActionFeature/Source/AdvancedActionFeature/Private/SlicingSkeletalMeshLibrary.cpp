@@ -719,6 +719,27 @@ float USlicingSkeletalMeshLibrary::GetBoneWeightForVertex(int32 VertexIndex, int
 	return -1.f;
 }
 
+TArray<float> USlicingSkeletalMeshLibrary::GetBoneWeightsForVertex(int32 VertexIndex,
+	const FSkelMeshRenderSection* SkelMeshRenderSection, const FSkeletalMeshLODRenderData* LODRenderData,
+	const FSkinWeightVertexBuffer* SkinWeightBuffer)
+{
+	TArray<float> Results;
+	Results.Empty();
+	
+	if (!SkinWeightBuffer || SkinWeightBuffer->GetNumVertices() == 0) return Results;
+	const int32 MaxInfluences = SkinWeightBuffer->GetMaxBoneInfluences();
+	const TArray<FBoneIndexType>& BoneMap = SkelMeshRenderSection->BoneMap;
+	for (int32 InfluenceIdx = 0; InfluenceIdx < MaxInfluences; InfluenceIdx++)
+	{
+		int32 LocalBoneIndex = SkinWeightBuffer->GetBoneIndex(VertexIndex, InfluenceIdx);
+		if (LocalBoneIndex >= BoneMap.Num()) continue; // Ensure we are within bounds
+        
+		int32 GlobalBoneIndex = BoneMap[LocalBoneIndex];
+		float BoneWeight = SkinWeightBuffer->GetBoneWeight(VertexIndex, InfluenceIdx) / 65535.0f;
+		Results.Add(BoneWeight);
+	}
+	return Results;
+}
 
 
 TMap<int32, float> USlicingSkeletalMeshLibrary::GetBoneWeightMapForProceduralVertices(

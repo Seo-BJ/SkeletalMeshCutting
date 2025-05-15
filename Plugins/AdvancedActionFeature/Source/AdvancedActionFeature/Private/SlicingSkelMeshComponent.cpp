@@ -34,7 +34,7 @@ void USlicingSkelMeshComponent::BeginPlay()
 void USlicingSkelMeshComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
+    PerformVertexSkinning();
     // PMCVerticesSkinning();
 }
 
@@ -681,6 +681,73 @@ void USlicingSkelMeshComponent::DrawDebugBoneWeightsOnVertices(const UWorld* InW
             UE_LOG(LogTemp, Warning, TEXT("DrawDebugBoneWeightsOnVertices: Could not find vertex position for global index %d in ProcMeshComponent %s"), VertexIndex, *InProcMeshComponent->GetName());
         }
     }
+}
+
+void USlicingSkelMeshComponent::PerformVertexSkinning()
+{
+    USkeletalMeshComponent* SkelComp = GetOwnerSkeletalMeshComponent();
+    int32 TargetBoneIndexInRefSkeleton = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton().FindBoneIndex(TargetBoneName);
+    FSkeletalMeshRenderData* RenderData = SkelComp->GetSkeletalMeshAsset()->GetResourceForRendering();
+    FSkeletalMeshLODRenderData& LODRenderData = RenderData->LODRenderData[TargetLODIndex];
+
+    if (TargetBoneIndexInRefSkeleton == INDEX_NONE)
+    {
+        UE_LOG(LogTemp, Error, TEXT("TargetBone '%s' not found in skeleton!"), *TargetBoneName.ToString());
+        return;
+    }
+
+    // 바인드 포즈에서의 버텍스 위치 (컴포넌트 공간)
+    const FVector3f BindPoseVertexPosition_CS = SkelComp->GetSkeletalMeshRenderData()->LODRenderData[TargetLODIndex].StaticVertexBuffers.PositionVertexBuffer.VertexPosition(TargetVertexIndex);
+    // 바인드 포즈 Bone Transform 배열 (컴포넌트 공간)
+    FTransform RefPoseTransform = FAnimationRuntime::GetComponentSpaceTransformRefPose(SkelComp->GetSkinnedAsset()->GetRefSkeleton(), TargetBoneIndexInRefSkeleton);
+    const FTransform InverseOfTargetBoneBindPoseTransform_CS = RefPoseTransform.Inverse();
+    
+    // 1. Vertex를 TargetBone의 바인드 포즈 로컬 공간으로 변환
+    FVector VertexInTargetBoneLocal_AtBindPose = InverseOfTargetBoneBindPoseTransform_CS.TransformPosition(FVector(BindPoseVertexPosition_CS));
+    
+    // 현재 애니메이션된 Bone Transform 배열 (컴포넌트 공간)
+    const TArray<FTransform>& AllCurrentBoneTransforms_CS = SkelComp->GetComponentSpaceTransforms();
+    if (!AllCurrentBoneTransforms_CS.IsValidIndex(TargetBoneIndexInRefSkeleton))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Invalid TargetBoneIndexInRefSkeleton for CurrentBoneTransforms."));
+        return;
+    }
+    
+    // TargetBone의 현재 애니메이션된 Transform (컴포넌트 공간)
+    const FTransform CurrentAnimatedTargetBoneTransform_CS = AllCurrentBoneTransforms_CS[TargetBoneIndexInRefSkeleton];
+    
+    // 2. TargetBone의 현재 애니메이션 Transform을 적용하여 Vertex를 다시 컴포넌트 공간으로 변환
+    FVector SkinnedVertex_CS = CurrentAnimatedTargetBoneTransform_CS.TransformPosition(FVector(VertexInTargetBoneLocal_AtBindPose));
+    
+    // --- 스키닝 계산 끝 ---
+    
+    FVector WorldPos = SkelComp->GetComponentTransform().TransformPosition(SkinnedVertex_CS);
+    //DrawDebugSphere(GetWorld(),  WorldPos,5, 8, FColor::Green, false, 0.05f);
+    // 1. Bone Name으로 버텍스 필터링
+    int32 TargetBoneIndex = SkelComp->GetBoneIndex(TargetBoneName);
+    bool bShouldFilter = (TargetBoneName != NAME_None);
+    const FSkinWeightVertexBuffer* SkinWeightBufferPtr = LODRenderData.GetSkinWeightVertexBuffer(); // 필터링 시에만 사용
+    
+    FStaticMeshVertexBuffers& StaticVertexBuffers = LODRenderData.StaticVertexBuffers;
+    uint32 NumVertices = StaticVertexBuffers.PositionVertexBuffer.GetNumVertices(); 
+    
+    
+    // Filter 전 후 Vertex Index를 비교하기 위한 TMap
+    TMap<uint32, uint32> FilteredVertexIndexMap;
+    uint32 FilteredVertexIndex = 0;
+
+    int32 OutSection;
+    int32 OutVertIndex;
+    LODRenderData.GetSectionFromVertexIndex(TargetVertexIndex, OutSection, OutVertIndex);
+   
+    TArray<float> Results = USlicingSkeletalMeshLibrary::GetBoneWeightsForVertex(TargetVertexIndex, &LODRenderData.RenderSections[OutSection], &LODRenderData, SkinWeightBufferPtr);
+    for (int j = 0; j < Results.Num(); j++ )
+    {
+        UE_LOG(LogTemp, Display, TEXT("BoneWeights: %f"), Results[j]);
+    }
+
+    
+    
 }
 
 

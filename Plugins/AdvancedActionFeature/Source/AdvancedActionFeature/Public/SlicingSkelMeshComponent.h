@@ -43,6 +43,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh", meta = (ClampMin = "0"))
     int32 TargetLODIndex = 0;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh", meta = (ClampMin = "0"))
+    int32 TargetVertexIndex = 0;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bConvertOnBeginPlay = true;
 
@@ -148,6 +151,7 @@ private:
     ) const;
     
 
+    void PerformVertexSkinning();
 };
 
 
