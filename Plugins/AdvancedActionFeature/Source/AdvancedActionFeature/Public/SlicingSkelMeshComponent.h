@@ -5,25 +5,17 @@
 #include "CoreMinimal.h"
 #include "ProceduralMeshComponent.h"
 #include "Components/ActorComponent.h"
+#include "SlicingSkeletalMeshLibrary.h"
 
 #include "SlicingSkelMeshComponent.generated.h"
 
 class USkeletalMeshComponent;
 class UProceduralMeshComponent;
-struct FProcMeshTangent; 
+struct FProcMeshTangent;
+struct FBoneWeigtsInfo;
 class FSkeletalMeshLODRenderData;
 enum class EProcMeshSliceCapOption : uint8;
 
-USTRUCT()
-struct FBoneWeightsInfo
-{
-    GENERATED_BODY()
-
-    TArray<int32> InfluencingBoneIndices;
-
-    TArray<float> BoneWeights;
-    
-};
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class ADVANCEDACTIONFEATURE_API USlicingSkelMeshComponent : public UActorComponent
 {
@@ -96,14 +88,14 @@ private:
     
     TMap<uint32, uint32> PMC_SkeletalVerticesMap;
     
-    TMap<int32, int32> SlicedPMC_OriginalPMC_VerticesMap;     
-    TMap<int32, int32> OtherHalfPMC_OrigianlPMC_VerticesMap;
+    TMap<uint32, uint32> SlicedPMC_OriginalPMC_VerticesMap;     
+    TMap<uint32, uint32> OtherHalfPMC_OrigianlPMC_VerticesMap;
 
     TMap<int32, float> SlicedPMC_BoneWeightMap;
     TMap<int32, float> OtherHalfPMC_BoneWeightMap;
 
-    TMap<INT32, FBoneWeightsInfo> SlicedPMC_BoneWeightsMap;
-    TMap<INT32, FBoneWeightsInfo> OtherHalfPMC_BoneWeightsMap;
+    TMap<uint32, FBoneWeightsInfo> SlicedPMC_BoneWeightsMap;
+    TMap<uint32, FBoneWeightsInfo> OtherHalfPMC_BoneWeightsMap;
     
     // 원본 스켈레탈 메시 컴포넌트에 대한 포인터 (캐싱용)
     // TWeakObjectPtr<USkeletalMeshComponent> OwnerSkelComp;
@@ -153,7 +145,9 @@ private:
     ) const;
     
 
-    void PerformVertexSkinning(UProceduralMeshComponent* ProcMesh, FName AttachBoneName);
+    void PerformVertexSkinning(UProceduralMeshComponent* ProcMesh, FName AttachBoneName, bool bOtherHalfMesh);
+
+    void PerformEntireVertexSkinning(UProceduralMeshComponent* ProcMesh, bool bOtherHalfMesh /* FName AttachBoneName - 이 파라미터는 이제 스키닝 계산에 직접 사용되지 않을 수 있습니다 */);
 };
 
 

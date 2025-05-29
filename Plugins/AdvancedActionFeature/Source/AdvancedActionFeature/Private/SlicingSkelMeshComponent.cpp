@@ -9,13 +9,6 @@
 #include "GameFramework/Actor.h" 
 #include "DrawDebugHelpers.h"
 
-#include "SlicingSkeletalMeshLibrary.h"
-
-
-#include "GeomTools.h"
-#include "MeshAttributes.h"
-#include "Misc/LowLevelTestAdapter.h"
-
 USlicingSkelMeshComponent::USlicingSkelMeshComponent()
 {
     PrimaryComponentTick.bCanEverTick = true; // 틱 활성화
@@ -35,9 +28,12 @@ void USlicingSkelMeshComponent::BeginPlay()
 void USlicingSkelMeshComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-    PerformVertexSkinning(ProceduralMeshComponent, AttachBoneForOriginalPMC);
-    PerformVertexSkinning(OtherHalfProceduralMeshComponent, AttachBoneForOtherHalf);
-    // PMCVerticesSkinning();
+
+    //PerformEntireVertexSkinning(ProceduralMeshComponent, false);
+   //  PerformEntireVertexSkinning(OtherHalfProceduralMeshComponent, true);
+    
+    PerformVertexSkinning(ProceduralMeshComponent, AttachBoneForOriginalPMC, false);
+    PerformVertexSkinning(OtherHalfProceduralMeshComponent, AttachBoneForOtherHalf, true);
 }
 
 
@@ -149,7 +145,6 @@ bool USlicingSkelMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCo
     }
     HideOriginalMeshVerticesByBone(SkelComp);
     
-    
     USlicingSkeletalMeshLibrary::SliceProceduralMesh(
         ProceduralMeshComponent,      // InProcMesh: 우리가 방금 채운 PMC
         BoneLocation,                 // PlanePosition
@@ -161,12 +156,12 @@ bool USlicingSkelMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCo
         SlicedPMC_OriginalPMC_VerticesMap,   // OutSlicedToBaseVertexIndex
         OtherHalfPMC_OrigianlPMC_VerticesMap // OutOtherSlicedToBaseVertexIndex
     );
-    
-    
+
     if (!OtherHalfProceduralMeshComponent) {
         UE_LOG(LogTemp, Error, TEXT("SliceAndAttach: SliceProceduralMesh completed but OtherHalfMesh is null for bone '%s'."), *TargetBoneName.ToString());
         return false;
     }
+    
     UE_LOG(LogTemp, Warning, TEXT("%d, %d"), SlicedPMC_OriginalPMC_VerticesMap.Num(), OtherHalfPMC_OrigianlPMC_VerticesMap.Num());
     UE_LOG(LogTemp, Log, TEXT("SliceProceduralMesh successful for bone '%s'. OtherHalfMesh component created."), *TargetBoneName.ToString());
 
@@ -178,13 +173,13 @@ bool USlicingSkelMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCo
     } else {
         UE_LOG(LogTemp, Warning, TEXT("Failed to hide original vertices for bone '%s'."), *TargetBoneName.ToString());
     }
-
-
+    
+    
     // --- 3. PMC 조각들 설정 및 부착 ---
     ProceduralMeshComponent->SetSimulatePhysics(false);
     OtherHalfProceduralMeshComponent->SetSimulatePhysics(false);
-    ProceduralMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    OtherHalfProceduralMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    ProceduralMeshComponent->SetCollisionEnabled(ECollisionEnabled::PhysicsOnly);
+    OtherHalfProceduralMeshComponent->SetCollisionEnabled(ECollisionEnabled::PhysicsOnly);
 
     // --- 부모 본 이름 가져오기 ---
     int32 TargetBoneIndexInRefSkeleton = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton().FindBoneIndex(TargetBoneName);
@@ -239,58 +234,23 @@ bool USlicingSkelMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCo
 
     // 슬라이스 후에는 보통 월드 트랜스폼을 유지하며 붙이는 것이 초기 위치를 정확히 잡는 데 도움이 될 수 있습니다.
     // 이후 본을 따라가도록 하기 위함입니다.
+   // OtherHalfProceduralMeshComponent->AttachToComponent(GetOwner()->GetRootComponent(), FAttachmentTransformRules::KeepWorldTransform, AttachBoneForOtherHalf);
+
     OtherHalfProceduralMeshComponent->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, AttachBoneForOtherHalf);
     ProceduralMeshComponent->AttachToComponent(SkelComp, FAttachmentTransformRules::KeepWorldTransform, AttachBoneForOriginalPMC);
     
     // --- 4. 부모 스켈레탈 메쉬 컴포넌트 레그돌화 ---
-    /*
-    UE_LOG(LogTemp, Log, TEXT("Initiating ragdoll on parent SkelComp '%s'..."), *SkelComp->GetName());
-    SkelComp->SetCollisionProfileName(TEXT("Ragdoll"));
-    SkelComp->SetSimulatePhysics(true);
-
-    FVector BreakImpulseDirection = FVector::UpVector; // 기본값, 필요시 수정
-    FVector BreakLocation = BoneLocation;
-    FVector FinalBreakImpulse = BreakImpulseDirection * ImpulseMagnitude;
-
-    UE_LOG(LogTemp, Log, TEXT("Breaking constraint at bone '%s' with Impulse: %s at Location: %s"), *TargetBoneName.ToString(), *FinalBreakImpulse.ToString(), *BreakLocation.ToString());
-    SkelComp->BreakConstraint(FinalBreakImpulse, BreakLocation, TargetBoneName); // BreakConstraint 호출 시 Location 인자 사용 (기존 코드와 일치시킴)
-
-    UE_LOG(LogTemp, Log, TEXT("Parent SkelComp ragdoll initiated successfully."));
     
-    SlicedPMC_BoneWeightMap = USlicingSkeletalMeshLibrary::GetBoneWeightMapForProceduralVertices(TargetLODIndex, SkelComp, TargetBoneIndexInRefSkeleton, SlicedPMC_OriginalPMC_VerticesMap ,PMC_SkeletalVerticesMap );
-    OtherHalfPMC_BoneWeightMap = USlicingSkeletalMeshLibrary::GetBoneWeightMapForProceduralVertices(TargetLODIndex, SkelComp, ParentBoneIndexInRefSkeleton, OtherHalfPMC_OrigianlPMC_VerticesMap ,PMC_SkeletalVerticesMap );
+   SkelComp->SetCollisionProfileName(TEXT("Ragdoll"));
+   SkelComp->SetSimulatePhysics(true);
+    SkelComp->BreakConstraint(FVector(1000.f, 1000.f, 1000.f), FVector::ZeroVector, TargetBoneName);
     
-    if (GetWorld() && bDrawDebug) // World 컨텍스트가 유효한지 확인
-    {
-        // SlicedPMC (ProceduralMeshComponent, 보통 TargetBone에 부착됨)에 대한 시각화
-        if (ProceduralMeshComponent && SlicedPMC_BoneWeightMap.Num() > 0)
-        {
-            DrawDebugBoneWeightsOnVertices(
-                GetWorld(),
-                ProceduralMeshComponent,
-                SlicedPMC_BoneWeightMap,
-                FColor::Green, // 이 메쉬 조각은 초록색 계열로
-                false,        // bPersistentLines
-                20.0f          // LifeTime
-            );
-        }
-
-        
-        // OtherHalfMesh (보통 ParentBone에 부착됨)에 대한 시각화
-        if (OtherHalfProceduralMeshComponent && OtherHalfPMC_BoneWeightMap.Num() > 0)
-        {
-            DrawDebugBoneWeightsOnVertices(
-                GetWorld(),
-                OtherHalfProceduralMeshComponent,
-                OtherHalfPMC_BoneWeightMap,
-                FColor::Magenta, // 이 메쉬 조각은 자홍색 계열로
-                false,          // bPersistentLines
-                20.0f            // LifeTime
-            );
-        }
-        
-    }
-    */
+   // SlicedPMC_BoneWeightMap = USlicingSkeletalMeshLibrary::GetBoneWeightMapForProceduralVertices(TargetLODIndex, SkelComp, TargetBoneIndexInRefSkeleton, SlicedPMC_OriginalPMC_VerticesMap ,PMC_SkeletalVerticesMap );
+   // OtherHalfPMC_BoneWeightMap = USlicingSkeletalMeshLibrary::GetBoneWeightMapForProceduralVertices(TargetLODIndex, SkelComp, ParentBoneIndexInRefSkeleton, OtherHalfPMC_OrigianlPMC_VerticesMap ,PMC_SkeletalVerticesMap );
+    
+    SlicedPMC_BoneWeightsMap = USlicingSkeletalMeshLibrary::GetBoneWeightsMapForProceduralVertices(TargetLODIndex, SkelComp, TargetBoneIndexInRefSkeleton, SlicedPMC_OriginalPMC_VerticesMap ,PMC_SkeletalVerticesMap );
+    OtherHalfPMC_BoneWeightsMap = USlicingSkeletalMeshLibrary::GetBoneWeightsMapForProceduralVertices(TargetLODIndex, SkelComp, ParentBoneIndexInRefSkeleton, OtherHalfPMC_OrigianlPMC_VerticesMap ,PMC_SkeletalVerticesMap );
+    
     return true;
 }
 
@@ -616,10 +576,9 @@ bool USlicingSkelMeshComponent::HideOriginalMeshVerticesByBone(USkeletalMeshComp
     return true; // 숨길 것이 없었음
 }
 
-void USlicingSkelMeshComponent::PerformVertexSkinning(UProceduralMeshComponent* ProcMesh, FName AttachBoneName)
+void USlicingSkelMeshComponent::PerformVertexSkinning(UProceduralMeshComponent* ProcMesh, FName AttachBoneName, bool bOtherHalfMesh)
 {
     USkeletalMeshComponent* SkelComp = GetOwnerSkeletalMeshComponent();
-    // TargetBoneName, TargetLODIndex, PMC_SkeletalVerticesMap 등은 멤버 변수로 존재한다고 가정합니다.
     if (!SkelComp || !SkelComp->GetSkeletalMeshAsset() || TargetBoneName == NAME_None || !ProcMesh)
     {
         UE_LOG(LogTemp, Warning, TEXT("PerformVertexSkinning: Invalid input or member variables."));
@@ -627,156 +586,293 @@ void USlicingSkelMeshComponent::PerformVertexSkinning(UProceduralMeshComponent* 
     }
 
     int32 TargetBoneIndexInRefSkeleton = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton().FindBoneIndex(AttachBoneName);
-    FSkeletalMeshRenderData* RenderData = SkelComp->GetSkeletalMeshAsset()->GetResourceForRendering();
-
     if (TargetBoneIndexInRefSkeleton == INDEX_NONE)
     {
         UE_LOG(LogTemp, Error, TEXT("TargetBone '%s' not found in skeleton!"), *TargetBoneName.ToString());
         return;
     }
-
+    
+    FSkeletalMeshRenderData* RenderData = SkelComp->GetSkeletalMeshAsset()->GetResourceForRendering();
     if (!RenderData || !RenderData->LODRenderData.IsValidIndex(TargetLODIndex))
     {
         UE_LOG(LogTemp, Error, TEXT("Invalid RenderData or TargetLODIndex for skeleton: %s"), *SkelComp->GetSkeletalMeshAsset()->GetName());
         return;
     }
     FSkeletalMeshLODRenderData& LODRenderData = RenderData->LODRenderData[TargetLODIndex];
-
+    
     const TArray<FTransform>& AllCurrentBoneTransforms_CS = SkelComp->GetComponentSpaceTransforms();
     if (!AllCurrentBoneTransforms_CS.IsValidIndex(TargetBoneIndexInRefSkeleton))
     {
         UE_LOG(LogTemp, Error, TEXT("Invalid TargetBoneIndexInRefSkeleton for CurrentBoneTransforms. Index: %d, ArraySize: %d"), TargetBoneIndexInRefSkeleton, AllCurrentBoneTransforms_CS.Num());
         return;
     }
+    
     const FTransform CurrentAnimatedTargetBoneTransform_CS = AllCurrentBoneTransforms_CS[TargetBoneIndexInRefSkeleton];
 
+    TArray<FTransform> RefBoneTransforms = SkelComp->GetSkinnedAsset()->GetRefSkeleton().GetRefBonePose();
+    
     FTransform RefPoseTransform = FAnimationRuntime::GetComponentSpaceTransformRefPose(SkelComp->GetSkinnedAsset()->GetRefSkeleton(), TargetBoneIndexInRefSkeleton);
     const FTransform InverseOfTargetBoneBindPoseTransform_CS = RefPoseTransform.Inverse();
+    
+    const FTransform CombinedBoneTransform_CS = CurrentAnimatedTargetBoneTransform_CS * InverseOfTargetBoneBindPoseTransform_CS;
     
     for (int32 SectionIndex = 0; SectionIndex < ProcMesh->GetNumSections(); SectionIndex++)
     {
         FProcMeshSection* Section = ProcMesh->GetProcMeshSection(SectionIndex);
-        if (!Section || Section->ProcVertexBuffer.Num() == 0)
+        const TArray<FProcMeshVertex>& CurrentProcMeshVertices = Section->ProcVertexBuffer;
+        
+        TArray<FVector> NewSkinnedPositions;
+        TArray<FVector> NewSkinnedNormals;
+        TArray<FProcMeshTangent> NewSkinnedTangents;
+
+        // UV와 Vertex Color는 일반적으로 스키닝되지 않으므로 원본 값을 유지합니다.
+        TArray<FVector2D> OriginalUV0s;
+        TArray<FLinearColor> OriginalVertexColors_Linear; // UpdateMeshSection_LinearColor 사용을 권장
+        
+        NewSkinnedPositions.Reserve(CurrentProcMeshVertices.Num());
+        NewSkinnedNormals.Reserve(CurrentProcMeshVertices.Num());
+        NewSkinnedTangents.Reserve(CurrentProcMeshVertices.Num());
+        OriginalUV0s.Reserve(CurrentProcMeshVertices.Num());
+        OriginalVertexColors_Linear.Reserve(CurrentProcMeshVertices.Num());
+
+        for (int32 ProcVertexIndex = 0; ProcVertexIndex < CurrentProcMeshVertices.Num(); ProcVertexIndex++)
+        {
+            const FProcMeshVertex& CurrentVertex = CurrentProcMeshVertices[ProcVertexIndex];
+            
+            // UV와 Vertex Color는 원본 값을 유지
+           // NewSkinnedPositions.Add(CurrentVertex.Position);
+            OriginalUV0s.Add(CurrentVertex.UV0);
+            OriginalVertexColors_Linear.Add(CurrentVertex.Color); // FLinearColor로 유지
+            
+            // PMC_SkeletalVerticesMap: Key(PMC Vertex Index) -> Value(Original Skeletal Mesh Vertex Index)
+            const uint32* OriginalSkelIndexPtr = nullptr;
+            if (bOtherHalfMesh)
+            {
+                const uint32* OriginalPMCIndexPtr = OtherHalfPMC_OrigianlPMC_VerticesMap.Find(ProcVertexIndex);
+                if (OriginalPMCIndexPtr)
+                {
+                    OriginalSkelIndexPtr = PMC_SkeletalVerticesMap.Find(*OriginalPMCIndexPtr);
+                }
+            }
+            else
+            {
+                const uint32* OriginalPMCIndexPtr = SlicedPMC_OriginalPMC_VerticesMap.Find(ProcVertexIndex);
+                if (OriginalPMCIndexPtr)
+                {
+                    OriginalSkelIndexPtr = PMC_SkeletalVerticesMap.Find(*OriginalPMCIndexPtr);
+                }
+            }
+                
+   // 현재 처리 중인 ProcMesh의 로컬 VertexIndex
+            if (OriginalSkelIndexPtr)
+            {
+                uint32 OriginalSkelGlobalIndex = *OriginalSkelIndexPtr;
+                
+                if (OriginalSkelGlobalIndex >= LODRenderData.GetNumVertices())
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("PerformVertexSkinning: OriginalSkelGlobalIndex (%u) out of bounds for LODRenderData vertices (%u). ProcVertexIndex: %d. Using current PMC vertex data."),
+                            OriginalSkelGlobalIndex, LODRenderData.GetNumVertices(), ProcVertexIndex);
+                    NewSkinnedPositions.Add(FVector(CurrentVertex.Position));
+                    NewSkinnedNormals.Add(FVector(CurrentVertex.Normal).GetSafeNormal());
+                    NewSkinnedTangents.Add(FProcMeshTangent(FVector(CurrentVertex.Tangent.TangentX).GetSafeNormal(), CurrentVertex.Tangent.bFlipTangentY));
+                    continue;
+                }
+
+                const FVector3f BindPoseVertexPosition_CS_F3f = LODRenderData.StaticVertexBuffers.PositionVertexBuffer.VertexPosition(OriginalSkelGlobalIndex);
+                const FVector BindPoseVertexPosition_CS(BindPoseVertexPosition_CS_F3f); // FVector로 변환
+                
+                const FStaticMeshVertexBuffer& StaticVB = LODRenderData.StaticVertexBuffers.StaticMeshVertexBuffer;
+                const FVector BindPoseNormal_CS(StaticVB.VertexTangentZ(OriginalSkelGlobalIndex)); 
+                const FVector BindPoseTangentX_CS(StaticVB.VertexTangentX(OriginalSkelGlobalIndex));
+                
+                FVector VertexInTargetBoneLocal_AtBindPose = InverseOfTargetBoneBindPoseTransform_CS.TransformPosition(FVector(BindPoseVertexPosition_CS));
+                FVector SkinnedVertex_CS = CurrentAnimatedTargetBoneTransform_CS.TransformPosition(VertexInTargetBoneLocal_AtBindPose);
+                NewSkinnedPositions.Add(SkinnedVertex_CS);
+                
+                // 노멀 스키닝 (TransformVector 사용 및 정규화)
+                NewSkinnedNormals.Add(CombinedBoneTransform_CS.TransformVector(BindPoseNormal_CS).GetSafeNormal());
+
+                // 탄젠트 스키닝 (TransformVector 사용 및 정규화)
+                FVector SkinnedTangentX = CombinedBoneTransform_CS.TransformVector(BindPoseTangentX_CS);
+                NewSkinnedTangents.Add(FProcMeshTangent(SkinnedTangentX.GetSafeNormal(), CurrentVertex.Tangent.bFlipTangentY));
+            }
+            else
+            {
+                NewSkinnedPositions.Add(FVector(CurrentVertex.Position));
+                NewSkinnedNormals.Add(FVector(CurrentVertex.Normal).GetSafeNormal()); // 현재 노멀 사용
+                NewSkinnedTangents.Add(FProcMeshTangent(FVector(CurrentVertex.Tangent.TangentX).GetSafeNormal(), CurrentVertex.Tangent.bFlipTangentY)); // 현재 탄젠트 사용
+            }
+
+        }
+
+        // FLinearColor를 사용하므로 UpdateMeshSection_LinearColor 사용 권장
+        ProcMesh->UpdateMeshSection_LinearColor(
+            SectionIndex,
+            NewSkinnedPositions,
+            NewSkinnedNormals,
+            OriginalUV0s,
+            OriginalVertexColors_Linear, 
+            NewSkinnedTangents
+        );
+    }
+}
+
+
+void USlicingSkelMeshComponent::PerformEntireVertexSkinning(UProceduralMeshComponent* ProcMesh, bool bOtherHalfMesh /* FName AttachBoneName - 이 파라미터는 이제 스키닝 계산에 직접 사용되지 않을 수 있습니다 */)
+{
+    USkeletalMeshComponent* SkelComp = GetOwnerSkeletalMeshComponent();
+    // TargetBoneName 멤버 변수를 사용하고 있었으므로, 이 부분이 명확해야 합니다.
+    // 이 함수는 특정 AttachBoneName에 종속되지 않고, 각 정점의 FBoneWeightsInfo를 사용해야 합니다.
+    // if (!SkelComp || !SkelComp->GetSkeletalMeshAsset() || TargetBoneName == NAME_None || !ProcMesh)
+    if (!SkelComp || !SkelComp->GetSkeletalMeshAsset() || !ProcMesh) // TargetBoneName == NAME_None 조건 제거 또는 재고려
+    {
+        UE_LOG(LogTemp, Warning, TEXT("PerformVertexSkinning: Invalid input or member variables."));
+        return;
+    }
+
+    FSkeletalMeshRenderData* RenderData = SkelComp->GetSkeletalMeshAsset()->GetResourceForRendering();
+    if (!RenderData || !RenderData->LODRenderData.IsValidIndex(TargetLODIndex))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Invalid RenderData or TargetLODIndex for skeleton: %s"), *SkelComp->GetSkeletalMeshAsset()->GetName());
+        return;
+    }
+    FSkeletalMeshLODRenderData& LODRenderData = RenderData->LODRenderData[TargetLODIndex];
+    
+    const TArray<FTransform>& AllCurrentBoneTransforms_CS = SkelComp->GetComponentSpaceTransforms();
+    const USkeletalMesh* SkeletalMeshAsset = SkelComp->GetSkeletalMeshAsset(); // 중복 호출 피하기 위해 미리 가져옴
+
+    for (int32 SectionIndex = 0; SectionIndex < ProcMesh->GetNumSections(); SectionIndex++)
+    {
+        FProcMeshSection* Section = ProcMesh->GetProcMeshSection(SectionIndex);
+        if (!Section || Section->ProcVertexBuffer.Num() == 0) // 섹션 유효성 검사 강화
         {
             continue;
         }
-
         const TArray<FProcMeshVertex>& CurrentProcMeshVertices = Section->ProcVertexBuffer;
-        TArray<FVector> SkinnedVerticesPositions; // 스키닝된 위치만 저장
-        SkinnedVerticesPositions.Reserve(CurrentProcMeshVertices.Num());
-
-        // 기존 섹션 데이터에서 노멀, UV, 컬러, 탄젠트를 추출하여 그대로 사용
-        TArray<FVector> OriginalNormals;
+        
+        TArray<FVector> NewSkinnedPositions;
+        TArray<FVector> NewSkinnedNormals;
+        TArray<FProcMeshTangent> NewSkinnedTangents;
         TArray<FVector2D> OriginalUV0s;
-        TArray<FColor> OriginalVertexColors;
-        TArray<FProcMeshTangent> OriginalTangents;
-
-        OriginalNormals.Reserve(CurrentProcMeshVertices.Num());
+        TArray<FLinearColor> OriginalVertexColors_Linear;
+        
+        NewSkinnedPositions.Reserve(CurrentProcMeshVertices.Num());
+        NewSkinnedNormals.Reserve(CurrentProcMeshVertices.Num());
+        NewSkinnedTangents.Reserve(CurrentProcMeshVertices.Num());
         OriginalUV0s.Reserve(CurrentProcMeshVertices.Num());
-        OriginalVertexColors.Reserve(CurrentProcMeshVertices.Num());
-        OriginalTangents.Reserve(CurrentProcMeshVertices.Num());
+        OriginalVertexColors_Linear.Reserve(CurrentProcMeshVertices.Num());
 
-        for (int32 VertexIndex = 0; VertexIndex < CurrentProcMeshVertices.Num(); VertexIndex++)
+        for (int32 ProcVertexIndex = 0; ProcVertexIndex < CurrentProcMeshVertices.Num(); ProcVertexIndex++)
         {
-            const FProcMeshVertex& CurrentVertex = CurrentProcMeshVertices[VertexIndex];
-
-            // 원본 데이터 저장
-            OriginalNormals.Add(FVector(CurrentVertex.Normal)); // FVector3f to FVector
-            OriginalUV0s.Add(CurrentVertex.UV0);
-            OriginalVertexColors.Add(CurrentVertex.Color); // FLinearColor가 아닌 FColor를 직접 사용한다고 가정 (FProcMeshVertex 멤버 타입 확인 필요)
-                                                          // 만약 FProcMeshVertex.Color가 FLinearColor라면, .ToFColor(false) 등으로 변환
-            OriginalTangents.Add(CurrentVertex.Tangent);
-
-
-            // PMC_SkeletalVerticesMap: Key(PMC Vertex Index) -> Value(Original Skeletal Mesh Vertex Index)
-            const uint32* OriginalSkelIndexPtr = PMC_SkeletalVerticesMap.Find(VertexIndex); // 현재 처리 중인 ProcMesh의 로컬 VertexIndex
-            if (!OriginalSkelIndexPtr) // 매핑 정보가 없는 버텍스 (예: 절단면 캡)
-            {
-                SkinnedVerticesPositions.Add(FVector(CurrentVertex.Position)); // 원본 위치 그대로 사용
-                continue;
-            }
-            uint32 OriginalIndex = *OriginalSkelIndexPtr;
-
-
-            if (OriginalIndex >= LODRenderData.StaticVertexBuffers.PositionVertexBuffer.GetNumVertices())
-            {
-                 UE_LOG(LogTemp, Warning, TEXT("PerformVertexSkinning: OriginalIndex out of bounds for PositionVertexBuffer. OriginalIndex: %u, BufferSize: %u"), OriginalIndex, LODRenderData.StaticVertexBuffers.PositionVertexBuffer.GetNumVertices());
-                 SkinnedVerticesPositions.Add(FVector(CurrentVertex.Position)); // 오류 시 원본 위치
-                 continue;
-            }
-            const FVector3f BindPoseVertexPosition_CS = LODRenderData.StaticVertexBuffers.PositionVertexBuffer.VertexPosition(OriginalIndex);
+            const FProcMeshVertex& CurrentVertex = CurrentProcMeshVertices[ProcVertexIndex];
             
-            FVector VertexInTargetBoneLocal_AtBindPose = InverseOfTargetBoneBindPoseTransform_CS.TransformPosition(FVector(BindPoseVertexPosition_CS));
-            FVector SkinnedVertex_CS = CurrentAnimatedTargetBoneTransform_CS.TransformPosition(VertexInTargetBoneLocal_AtBindPose);
-            SkinnedVerticesPositions.Add(SkinnedVertex_CS);
+            OriginalUV0s.Add(CurrentVertex.UV0);
+            OriginalVertexColors_Linear.Add(CurrentVertex.Color);
+            
+            // 1. 이 정점에 대한 FBoneWeightsInfo 가져오기
+            const FBoneWeightsInfo* VertexBoneWeightsInfo = nullptr;
+            if (bOtherHalfMesh)
+            {
+                VertexBoneWeightsInfo = OtherHalfPMC_BoneWeightsMap.Find(ProcVertexIndex);
+            }
+            else
+            {
+                VertexBoneWeightsInfo = SlicedPMC_BoneWeightsMap.Find(ProcVertexIndex);
+            }
+
+            // 2. 이 정점의 원본 스켈레탈 메쉬 인덱스 가져오기
+            const uint32* OriginalSkelIndexPtr = nullptr;
+            uint32 CurrentProcMeshVertexIndexKey = static_cast<uint32>(ProcVertexIndex); // TMap 키 타입에 맞춤
+
+            if (bOtherHalfMesh)
+            {
+                const uint32* OriginalPMCIndexPtr = OtherHalfPMC_OrigianlPMC_VerticesMap.Find(CurrentProcMeshVertexIndexKey);
+                if (OriginalPMCIndexPtr)
+                {
+                    OriginalSkelIndexPtr = PMC_SkeletalVerticesMap.Find(*OriginalPMCIndexPtr);
+                }
+            }
+            else
+            {
+                const uint32* OriginalPMCIndexPtr = SlicedPMC_OriginalPMC_VerticesMap.Find(CurrentProcMeshVertexIndexKey);
+                if (OriginalPMCIndexPtr)
+                {
+                    OriginalSkelIndexPtr = PMC_SkeletalVerticesMap.Find(*OriginalPMCIndexPtr);
+                }
+            }
+            
+            if (VertexBoneWeightsInfo && VertexBoneWeightsInfo->InfluencingBoneIndices.Num() > 0 && OriginalSkelIndexPtr)
+            {
+                uint32 OriginalSkelGlobalIndex = *OriginalSkelIndexPtr;
+                
+                if (OriginalSkelGlobalIndex >= LODRenderData.GetNumVertices())
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("PerformVertexSkinning: OriginalSkelGlobalIndex (%u) out of bounds. ProcVertIdx: %d. Using current PMC data."), OriginalSkelGlobalIndex, ProcVertexIndex);
+                    NewSkinnedPositions.Add(FVector(CurrentVertex.Position));
+                    NewSkinnedNormals.Add(FVector(CurrentVertex.Normal).GetSafeNormal());
+                    NewSkinnedTangents.Add(FProcMeshTangent(FVector(CurrentVertex.Tangent.TangentX).GetSafeNormal(), CurrentVertex.Tangent.bFlipTangentY));
+                    continue;
+                }
+
+                FVector FinalSkinnedPosition_CS = FVector::ZeroVector;
+                FVector FinalSkinnedNormal_CS = FVector::ZeroVector;
+                FVector FinalSkinnedTangentX_CS = FVector::ZeroVector;
+
+                // 바인드 포즈 데이터는 한 번만 가져옴
+                const FVector3f BindPoseVertexPosition_CS_F3f = LODRenderData.StaticVertexBuffers.PositionVertexBuffer.VertexPosition(OriginalSkelGlobalIndex);
+                const FVector BindPoseVertexPosition_CS(BindPoseVertexPosition_CS_F3f);
+                const FStaticMeshVertexBuffer& StaticVB = LODRenderData.StaticVertexBuffers.StaticMeshVertexBuffer;
+                const FVector BindPoseNormal_CS(StaticVB.VertexTangentZ(OriginalSkelGlobalIndex)); 
+                const FVector BindPoseTangentX_CS(StaticVB.VertexTangentX(OriginalSkelGlobalIndex));
+
+                for (int32 i = 0; i < VertexBoneWeightsInfo->InfluencingBoneIndices.Num(); ++i)
+                {
+                    int32 BoneIndex = VertexBoneWeightsInfo->InfluencingBoneIndices[i];
+                    float Weight = VertexBoneWeightsInfo->BoneWeights[i];
+
+                    if (Weight <= KINDA_SMALL_NUMBER) // 매우 작은 가중치는 무시 (엔진 내부에서도 사용되는 방식)
+                    {
+                        continue;
+                    }
+
+                    if (!AllCurrentBoneTransforms_CS.IsValidIndex(BoneIndex))
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("PerformVertexSkinning: Invalid BoneIndex %d from BoneWeightsInfo."), BoneIndex);
+                        continue;
+                    }
+
+                    const FTransform& CurrentAnimatedBoneTransform_CS = AllCurrentBoneTransforms_CS[BoneIndex];
+                    FTransform BindPoseBoneTransform_CS = FAnimationRuntime::GetComponentSpaceTransformRefPose(SkeletalMeshAsset->GetRefSkeleton(), BoneIndex);
+                    const FTransform InverseBindPoseBoneTransform_CS = BindPoseBoneTransform_CS.Inverse();
+                    
+                    const FTransform CombinedBoneTransform_CS = CurrentAnimatedBoneTransform_CS * InverseBindPoseBoneTransform_CS;
+
+                    FinalSkinnedPosition_CS += CombinedBoneTransform_CS.TransformPosition(BindPoseVertexPosition_CS) * Weight;
+                    FinalSkinnedNormal_CS += CombinedBoneTransform_CS.TransformVector(BindPoseNormal_CS) * Weight;
+                    FinalSkinnedTangentX_CS += CombinedBoneTransform_CS.TransformVector(BindPoseTangentX_CS) * Weight;
+                }
+                NewSkinnedPositions.Add(FinalSkinnedPosition_CS);
+                NewSkinnedNormals.Add(FinalSkinnedNormal_CS.GetSafeNormal()); // 합산 후 정규화
+                NewSkinnedTangents.Add(FProcMeshTangent(FinalSkinnedTangentX_CS.GetSafeNormal(), CurrentVertex.Tangent.bFlipTangentY)); // 합산 후 정규화
+            }
+            else // 스키닝 정보가 없거나 (캡 버텍스 등), 원본 스켈레탈 인덱스를 찾지 못한 경우
+            {
+                NewSkinnedPositions.Add(FVector(CurrentVertex.Position));
+                NewSkinnedNormals.Add(FVector(CurrentVertex.Normal).GetSafeNormal());
+                NewSkinnedTangents.Add(FProcMeshTangent(FVector(CurrentVertex.Tangent.TangentX).GetSafeNormal(), CurrentVertex.Tangent.bFlipTangentY));
+            }
         }
 
-        // UpdateMeshSection 호출 시, 스키닝된 위치와 원본 노멀, UV, 컬러, 탄젠트 사용
-        ProcMesh->UpdateMeshSection(
+        ProcMesh->UpdateMeshSection_LinearColor(
             SectionIndex,
-            SkinnedVerticesPositions,  // 스키닝된 위치
-            OriginalNormals,           // 원본 노멀 (스키닝 X)
-            OriginalUV0s,              // 원본 UV0 (스키닝 X)
-            OriginalVertexColors,      // 원본 버텍스 컬러 (스키닝 X)
-            OriginalTangents           // 원본 탄젠트 (스키닝 X)
+            NewSkinnedPositions,
+            NewSkinnedNormals,
+            OriginalUV0s,
+            OriginalVertexColors_Linear, 
+            NewSkinnedTangents
         );
     }
-
-    /*
-    // 바인드 포즈에서의 버텍스 위치 (컴포넌트 공간)
-    const FVector3f BindPoseVertexPosition_CS = SkelComp->GetSkeletalMeshRenderData()->LODRenderData[TargetLODIndex].StaticVertexBuffers.PositionVertexBuffer.VertexPosition(TargetVertexIndex);
-    // 바인드 포즈 Bone Transform 배열 (컴포넌트 공간)
-    FTransform RefPoseTransform = FAnimationRuntime::GetComponentSpaceTransformRefPose(SkelComp->GetSkinnedAsset()->GetRefSkeleton(), TargetBoneIndexInRefSkeleton);
-    const FTransform InverseOfTargetBoneBindPoseTransform_CS = RefPoseTransform.Inverse();
-    
-    // 1. Vertex를 TargetBone의 바인드 포즈 로컬 공간으로 변환
-    FVector VertexInTargetBoneLocal_AtBindPose = InverseOfTargetBoneBindPoseTransform_CS.TransformPosition(FVector(BindPoseVertexPosition_CS));
-    
-    // 현재 애니메이션된 Bone Transform 배열 (컴포넌트 공간)
-    const TArray<FTransform>& AllCurrentBoneTransforms_CS = SkelComp->GetComponentSpaceTransforms();
-    if (!AllCurrentBoneTransforms_CS.IsValidIndex(TargetBoneIndexInRefSkeleton))
-    {
-        UE_LOG(LogTemp, Error, TEXT("Invalid TargetBoneIndexInRefSkeleton for CurrentBoneTransforms."));
-        return;
-    }
-    
-    // TargetBone의 현재 애니메이션된 Transform (컴포넌트 공간)
-    const FTransform CurrentAnimatedTargetBoneTransform_CS = AllCurrentBoneTransforms_CS[TargetBoneIndexInRefSkeleton];
-    
-    // 2. TargetBone의 현재 애니메이션 Transform을 적용하여 Vertex를 다시 컴포넌트 공간으로 변환
-    FVector SkinnedVertex_CS = CurrentAnimatedTargetBoneTransform_CS.TransformPosition(FVector(VertexInTargetBoneLocal_AtBindPose));
-    
-    // --- 스키닝 계산 끝 ---
-    
-    FVector WorldPos = SkelComp->GetComponentTransform().TransformPosition(SkinnedVertex_CS);
-    //DrawDebugSphere(GetWorld(),  WorldPos,5, 8, FColor::Green, false, 0.05f);
-    // 1. Bone Name으로 버텍스 필터링
-    int32 TargetBoneIndex = SkelComp->GetBoneIndex(TargetBoneName);
-    bool bShouldFilter = (TargetBoneName != NAME_None);
-    const FSkinWeightVertexBuffer* SkinWeightBufferPtr = LODRenderData.GetSkinWeightVertexBuffer(); // 필터링 시에만 사용
-    
-    FStaticMeshVertexBuffers& StaticVertexBuffers = LODRenderData.StaticVertexBuffers;
-    uint32 NumVertices = StaticVertexBuffers.PositionVertexBuffer.GetNumVertices(); 
-    
-    
-    // Filter 전 후 Vertex Index를 비교하기 위한 TMap
-    TMap<uint32, uint32> FilteredVertexIndexMap;
-    uint32 FilteredVertexIndex = 0;
-
-    int32 OutSection;
-    int32 OutVertIndex;
-    LODRenderData.GetSectionFromVertexIndex(TargetVertexIndex, OutSection, OutVertIndex);
-   
-    TArray<float> Results = USlicingSkeletalMeshLibrary::GetBoneWeightsForVertex(TargetVertexIndex, &LODRenderData.RenderSections[OutSection], &LODRenderData, SkinWeightBufferPtr);
-    for (int j = 0; j < Results.Num(); j++ )
-    {
-        UE_LOG(LogTemp, Display, TEXT("BoneWeights: %f"), Results[j]);
-    }
-
-    */
-    
 }
-
 
 USkeletalMeshComponent* USlicingSkelMeshComponent::GetOwnerSkeletalMeshComponent() const
 {
