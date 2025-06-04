@@ -71,12 +71,10 @@ public:
 	const TMap<uint32, uint32>& OriginalPmcToSkeletal) ;
 
 
-	static TMap<uint32, FBoneWeightsInfo> GetBoneWeightsMapForProceduralVertices(
+	static TMap<uint32, FBoneWeightsInfo> GetBoneWeightsInfoMapForSlicedProcMeshVertices(
 	const int32 TargetLODIndex,
 	const USkeletalMeshComponent* InSkelComp,
-	int32 TargetGlobalBoneIndex,
-	const TMap<uint32, uint32>& SlicePmcToOriginalPmc,
-	const TMap<uint32, uint32>& OriginalPmcToSkeletal) ;
+	const TMap<uint32, uint32>& SlicePmcToSkelMap);
 
 
 };

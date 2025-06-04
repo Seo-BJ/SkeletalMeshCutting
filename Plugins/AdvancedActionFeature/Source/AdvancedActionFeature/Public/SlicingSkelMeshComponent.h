@@ -40,7 +40,10 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bConvertOnBeginPlay = true;
-
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
+    bool bPerformVertexSkinning = false;
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bDrawDebug = false;
 
@@ -76,6 +79,7 @@ public:
     
     UFUNCTION(BlueprintCallable, Category = "Procedural Mesh")
     bool SliceMesh(bool bForceNewPMC);
+    void MakeProcVerticiesIndexMap(const TMap<uint32, uint32>& SlicedPmcToPmcMap, TMap<uint32, uint32>& ResultMap);
 
 protected:
     
@@ -86,10 +90,13 @@ private:
     FName AttachBoneForOtherHalf;
     FName AttachBoneForOriginalPMC;
     
-    TMap<uint32, uint32> PMC_SkeletalVerticesMap;
+    TMap<uint32, uint32> PMC_To_Skel_VerticesMap;
     
-    TMap<uint32, uint32> SlicedPMC_OriginalPMC_VerticesMap;     
-    TMap<uint32, uint32> OtherHalfPMC_OrigianlPMC_VerticesMap;
+    TMap<uint32, uint32> SlicedPMC_To_OriginalPMC_VerticesMap;     
+    TMap<uint32, uint32> OtherHalfPMC_To_OrigianlPMC_VerticesMap;
+
+    TMap<uint32, uint32> SlicedPMC_To_Skel_VerticesMap;     
+    TMap<uint32, uint32> OtherHalfPMC_To_Skel_VerticesMap;
 
     TMap<int32, float> SlicedPMC_BoneWeightMap;
     TMap<int32, float> OtherHalfPMC_BoneWeightMap;
@@ -122,7 +129,7 @@ private:
     USkeletalMeshComponent* GetOwnerSkeletalMeshComponent() const;
 
 
-    bool HideOriginalMeshVerticesByBone(USkeletalMeshComponent* SourceSkeletalMeshComp, bool bClearOverride = true);
+    void HideOriginalMeshVerticesByBone(USkeletalMeshComponent* SourceSkeletalMeshComp, bool bClearOverride = true);
 
     /**
    * Procedural Mesh의 버텍스 Bone Weight를 디버그 시각화합니다.
@@ -148,6 +155,8 @@ private:
     void PerformVertexSkinning(UProceduralMeshComponent* ProcMesh, FName AttachBoneName, bool bOtherHalfMesh);
 
     void PerformEntireVertexSkinning(UProceduralMeshComponent* ProcMesh, bool bOtherHalfMesh /* FName AttachBoneName - 이 파라미터는 이제 스키닝 계산에 직접 사용되지 않을 수 있습니다 */);
+
+    void PerFormVertexSkinningForProcMesh(UProceduralMeshComponent* ProcMesh);
 };
 
 

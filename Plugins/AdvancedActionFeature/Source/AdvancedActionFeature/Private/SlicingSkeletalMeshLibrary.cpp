@@ -818,25 +818,22 @@ TMap<uint32, float> USlicingSkeletalMeshLibrary::GetBoneWeightMapForProceduralVe
 
 
 
-TMap<uint32, FBoneWeightsInfo> USlicingSkeletalMeshLibrary::GetBoneWeightsMapForProceduralVertices(const int32 TargetLODIndex,
-	const USkeletalMeshComponent* InSkelComp, int32 TargetGlobalBoneIndex,
-	const TMap<uint32, uint32>& SlicePmcToOriginalPmc, const TMap<uint32, uint32>& OriginalPmcToSkeletal)
+TMap<uint32, FBoneWeightsInfo> USlicingSkeletalMeshLibrary::GetBoneWeightsInfoMapForSlicedProcMeshVertices(const int32 TargetLODIndex,
+	const USkeletalMeshComponent* InSkelComp,
+	const TMap<uint32, uint32>& SlicePmcToSkelMap)
 {
 	TMap<uint32, FBoneWeightsInfo> Results;
-
-    if (!InSkelComp || !InSkelComp->GetSkeletalMeshAsset() || TargetGlobalBoneIndex == INDEX_NONE)
+    if (!InSkelComp || !InSkelComp->GetSkeletalMeshAsset())
     {
         UE_LOG(LogTemp, Error, TEXT("GetBoneWeightMapForProceduralVertices: Invalid input SkelComp or TargetGlobalBoneIndex."));
         return Results;
     }
-
     const FSkeletalMeshRenderData* SkelMeshRenderData = InSkelComp->GetSkeletalMeshRenderData();
     if (!SkelMeshRenderData || SkelMeshRenderData->LODRenderData.Num() == 0)
     {
         UE_LOG(LogTemp, Error, TEXT("GetBoneWeightMapForProceduralVertices: No SkeletalMeshRenderData or LODRenderData found."));
         return Results;
     }
-
     if (!SkelMeshRenderData->LODRenderData.IsValidIndex(TargetLODIndex)) // TargetLODIndex는 멤버 변수로 가정
     {
         UE_LOG(LogTemp, Error, TEXT("GetBoneWeightMapForProceduralVertices: TargetLODIndex %d is invalid."), TargetLODIndex);
@@ -851,57 +848,34 @@ TMap<uint32, FBoneWeightsInfo> USlicingSkeletalMeshLibrary::GetBoneWeightsMapFor
     }
 
     // SlicePmcToOriginalPmc (Key: NewPMCVertIdx, Value: PreSlicePMCLocalIdx)을 순회
-    for (const auto& NewToOldPair : SlicePmcToOriginalPmc)
+    for (const TPair<uint32, uint32>& NewToOldPair : SlicePmcToSkelMap)
     {
-    	
-        int32 NewPMCVertIdx = NewToOldPair.Key;
-        int32 PreSlicePMCLocalIdx = NewToOldPair.Value; // 슬라이스 전 PMC의 로컬 인덱스
-
-    	/*
-        if (PreSlicePMCLocalIdx == -1) // 캡 버텍스 또는 특별히 -1로 매핑된 경우
-        {
-            BoneWeights.Add(NewPMCVertIdx, 0.f); // 스키닝 가중치 0으로 처리
-            continue;
-        }*/
-
-        // OriginalPmcToSkeletal 맵을 사용하여 PreSlicePMCLocalIdx로부터 원본 스켈레탈 메쉬의 글로벌 인덱스를 찾습니다.
-        // OriginalPmcToSkeletal의 Key 타입이 uint32이므로 캐스팅합니다.
-        const uint32* OriginalSkelGlobalVertexIndexPtr = OriginalPmcToSkeletal.Find(static_cast<uint32>(PreSlicePMCLocalIdx));
-
+        uint32 ProcVertexIndex = NewToOldPair.Key;
+        uint32 SkelVertexIndex = NewToOldPair.Value; 
     	FBoneWeightsInfo BoneWeightsInfo;
     	
-        if (OriginalSkelGlobalVertexIndexPtr)
+        if (SkelVertexIndex >= 0)
         {
-            uint32 OriginalSkelGlobalVertexIndex = *OriginalSkelGlobalVertexIndexPtr;
             TArray<float> BoneWeights; // 기본값
 
             // 원본 스켈레탈 메쉬의 어떤 섹션에 이 버텍스가 속했는지 찾아야 GetBoneWeightForVertex를 호출 가능.
             bool bFoundSection = false;
             for (const FSkelMeshRenderSection& Section : LODRenderData.RenderSections)
             {
-                if (OriginalSkelGlobalVertexIndex >= Section.BaseVertexIndex &&
-                    OriginalSkelGlobalVertexIndex < (Section.BaseVertexIndex + Section.NumVertices))
+                if (SkelVertexIndex >= Section.BaseVertexIndex &&
+                    SkelVertexIndex < (Section.BaseVertexIndex + Section.NumVertices))
                 {
-                	BoneWeightsInfo = GetBoneWeightsForVertex(OriginalSkelGlobalVertexIndex, &Section, &LODRenderData, SkinWeightBuffer);
+                	BoneWeightsInfo = GetBoneWeightsForVertex(SkelVertexIndex, &Section, &LODRenderData, SkinWeightBuffer);
                     bFoundSection = true;
                     break; 
                 }
             }
-            
             if (!bFoundSection) {
-                 UE_LOG(LogTemp, Warning, TEXT("GetBoneWeightMapForProceduralVertices: Could not find render section for original skeletal vertex index: %u (from PreSlicePMCLocalIdx: %d)"), OriginalSkelGlobalVertexIndex, PreSlicePMCLocalIdx);
+                 UE_LOG(LogTemp, Warning, TEXT("GetBoneWeightMapForProceduralVertices: Could not find render section for original skeletal vertex index: %u (from SlicedProcMesh Index: %d)"), SkelVertexIndex, ProcVertexIndex);
             }
-            Results.Add(NewPMCVertIdx, BoneWeightsInfo); // GetBoneWeightForVertex가 0.f를 반환하면 그대로 사용
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("GetBoneWeightMapForProceduralVertices: Could not find original skeletal mesh vertex in OriginalPmcToSkeletal map for PreSlicePMCLocalIdx: %d. New PMC Vert Idx: %d"), PreSlicePMCLocalIdx, NewPMCVertIdx);
-            Results.Add(NewPMCVertIdx, BoneWeightsInfo);
+            Results.Add(ProcVertexIndex, BoneWeightsInfo); // GetBoneWeightForVertex가 0.f를 반환하면 그대로 사용
         }
     }
-
-	
-	
 	return Results;
 }
 
