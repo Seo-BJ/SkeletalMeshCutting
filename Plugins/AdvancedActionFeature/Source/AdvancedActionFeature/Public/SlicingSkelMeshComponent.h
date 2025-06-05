@@ -40,10 +40,22 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bConvertOnBeginPlay = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
+    bool bNotAttach = true;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
+    bool bAttachToSkelComp = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
+    bool bKeepWorldTransform = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
+    bool bRagDoll = true;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
+    bool bBreakConstraint = true;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bPerformVertexSkinning = false;
-    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bDrawDebug = false;
 
@@ -80,6 +92,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Procedural Mesh")
     bool SliceMesh(bool bForceNewPMC);
     void MakeProcVerticiesIndexMap(const TMap<uint32, uint32>& SlicedPmcToPmcMap, TMap<uint32, uint32>& ResultMap);
+    void SaveCuttingSurfaceVertices(UProceduralMeshComponent* ProcMesh, bool bOtherHalf);
 
 protected:
     
@@ -89,6 +102,9 @@ protected:
 private:
     FName AttachBoneForOtherHalf;
     FName AttachBoneForOriginalPMC;
+
+    int32 TargetBoneIndexInRefSkeleton;
+    int32 ParentBoneIndexInRefSkeleton;;
     
     TMap<uint32, uint32> PMC_To_Skel_VerticesMap;
     
@@ -103,6 +119,12 @@ private:
 
     TMap<uint32, FBoneWeightsInfo> SlicedPMC_BoneWeightsMap;
     TMap<uint32, FBoneWeightsInfo> OtherHalfPMC_BoneWeightsMap;
+
+    TMap<int32, FProcMeshVertex> SlicedPMC_CuttingSurfaceVertices;
+    TMap<int32, FProcMeshVertex> OtherHalfPMC_CuttingSurfaceVertices;
+
+
+    float BreakBoneDistance = 0.0f;
     
     // 원본 스켈레탈 메시 컴포넌트에 대한 포인터 (캐싱용)
     // TWeakObjectPtr<USkeletalMeshComponent> OwnerSkelComp;
@@ -154,9 +176,8 @@ private:
 
     void PerformVertexSkinning(UProceduralMeshComponent* ProcMesh, FName AttachBoneName, bool bOtherHalfMesh);
 
+    void SaveSlicingSurfaceVertexInfos();
     void PerformEntireVertexSkinning(UProceduralMeshComponent* ProcMesh, bool bOtherHalfMesh /* FName AttachBoneName - 이 파라미터는 이제 스키닝 계산에 직접 사용되지 않을 수 있습니다 */);
-
-    void PerFormVertexSkinningForProcMesh(UProceduralMeshComponent* ProcMesh);
 };
 
 

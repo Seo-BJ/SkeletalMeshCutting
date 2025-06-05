@@ -328,7 +328,7 @@ void USlicingSkeletalMeshLibrary::SliceProceduralMesh(UProceduralMeshComponent* 
 							NewSection.SectionLocalBox += BaseVert.Position;
 							// Add to map
 							BaseToSlicedVertIndex.Add(BaseVertIndex, SlicedVertIndex);
-							OutSlicedToBaseVertexIndex.Add(GlobalVertexOffsetForSlicedMesh + SlicedVertIndex, BaseVertIndex);
+							OutSlicedToBaseVertexIndex.Add( SlicedVertIndex, BaseVertIndex);
 						}
 						// Or add to other half if desired
 						else if(NewOtherSection != nullptr)
@@ -336,7 +336,7 @@ void USlicingSkeletalMeshLibrary::SliceProceduralMesh(UProceduralMeshComponent* 
 							int32 SlicedVertIndex = NewOtherSection->ProcVertexBuffer.Add(BaseVert);
 							NewOtherSection->SectionLocalBox += BaseVert.Position;
 							BaseToOtherSlicedVertIndex.Add(BaseVertIndex, SlicedVertIndex);
-							OutOtherSlicedToBaseVertexIndex.Add(GlobalVertexOffsetForOtherHalf + SlicedVertIndex, BaseVertIndex);
+							OutOtherSlicedToBaseVertexIndex.Add( SlicedVertIndex, BaseVertIndex);
 						}
 					}
 
@@ -713,7 +713,7 @@ float USlicingSkeletalMeshLibrary::GetBoneWeightForVertex(int32 VertexIndex, int
 	return -1;
 }
 
-FBoneWeightsInfo USlicingSkeletalMeshLibrary::GetBoneWeightsForVertex(int32 VertexIndex,
+FBoneWeightsInfo USlicingSkeletalMeshLibrary::GetBoneWeightsForVertex(const USkeletalMeshComponent* SkelComp, int32 VertexIndex,
 	const FSkelMeshRenderSection* SkelMeshRenderSection, const FSkeletalMeshLODRenderData* LODRenderData,
 	const FSkinWeightVertexBuffer* SkinWeightBuffer)
 {
@@ -731,6 +731,7 @@ FBoneWeightsInfo USlicingSkeletalMeshLibrary::GetBoneWeightsForVertex(int32 Vert
 		float BoneWeight = SkinWeightBuffer->GetBoneWeight(VertexIndex, InfluenceIdx) / 65535.0f;
 		BoneWeightsInfo.BoneWeights.Add(BoneWeight);
 		BoneWeightsInfo.InfluencingBoneIndices.Add(GlobalBoneIndex);
+		BoneWeightsInfo.BoneNames.Add(SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton().GetBoneName(GlobalBoneIndex));
 	}
 	return BoneWeightsInfo;
 }
@@ -865,7 +866,7 @@ TMap<uint32, FBoneWeightsInfo> USlicingSkeletalMeshLibrary::GetBoneWeightsInfoMa
                 if (SkelVertexIndex >= Section.BaseVertexIndex &&
                     SkelVertexIndex < (Section.BaseVertexIndex + Section.NumVertices))
                 {
-                	BoneWeightsInfo = GetBoneWeightsForVertex(SkelVertexIndex, &Section, &LODRenderData, SkinWeightBuffer);
+                	BoneWeightsInfo = GetBoneWeightsForVertex(InSkelComp, SkelVertexIndex, &Section, &LODRenderData, SkinWeightBuffer);
                     bFoundSection = true;
                     break; 
                 }

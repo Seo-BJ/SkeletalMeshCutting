@@ -15,6 +15,8 @@ struct FBoneWeightsInfo
 	TArray<int32> InfluencingBoneIndices;
 
 	TArray<float> BoneWeights;
+
+	TArray<FName> BoneNames;
     
 };
 
@@ -51,7 +53,7 @@ public:
 		const FSkeletalMeshLODRenderData* LODRenderData, const FSkinWeightVertexBuffer* SkinWeightBuffer);
 
 	
-	static FBoneWeightsInfo GetBoneWeightsForVertex(int32 VertexIndex,
+	static FBoneWeightsInfo GetBoneWeightsForVertex(const USkeletalMeshComponent* SkelComp, int32 VertexIndex,
 	const FSkelMeshRenderSection* SkelMeshRenderSection, const FSkeletalMeshLODRenderData* LODRenderData,
 	const FSkinWeightVertexBuffer* SkinWeightBuffer);
 	
