@@ -20,6 +20,19 @@ struct FBoneWeightsInfo
     
 };
 
+USTRUCT()
+struct FSlicedProcMeshVertexInfo
+{
+	GENERATED_BODY()
+
+	FVector Position;
+	
+	FVector Normal;
+	
+	FProcMeshTangent Tangent;
+    
+};
+
 /**
  * 
  */

@@ -37,6 +37,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh", meta = (ClampMin = "0"))
     int32 TargetVertexIndex = 0;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh", meta = (ClampMin = "0"))
+    float MaxTiltAngleInDegrees;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bConvertOnBeginPlay = true;
@@ -56,6 +59,14 @@ public:
     bool bBreakConstraint = true;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bPerformVertexSkinning = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
+    bool bPerformVertexSkinningLater = false;
+    
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
+    bool bSliceMesh = false;
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Mesh")
     bool bDrawDebug = false;
 
@@ -120,8 +131,8 @@ private:
     TMap<uint32, FBoneWeightsInfo> SlicedPMC_BoneWeightsMap;
     TMap<uint32, FBoneWeightsInfo> OtherHalfPMC_BoneWeightsMap;
 
-    TMap<int32, FProcMeshVertex> SlicedPMC_CuttingSurfaceVertices;
-    TMap<int32, FProcMeshVertex> OtherHalfPMC_CuttingSurfaceVertices;
+    TMap<int32, FSlicedProcMeshVertexInfo> SlicedPMC_CuttingSurfaceVertices;
+    TMap<int32, FSlicedProcMeshVertexInfo> OtherHalfPMC_CuttingSurfaceVertices;
 
 
     float BreakBoneDistance = 0.0f;
@@ -173,11 +184,16 @@ private:
         float SphereRadius = 1.0f
     ) const;
     
-
-    void PerformVertexSkinning(UProceduralMeshComponent* ProcMesh, FName AttachBoneName, bool bOtherHalfMesh);
-
-    void SaveSlicingSurfaceVertexInfos();
+    
     void PerformEntireVertexSkinning(UProceduralMeshComponent* ProcMesh, bool bOtherHalfMesh /* FName AttachBoneName - 이 파라미터는 이제 스키닝 계산에 직접 사용되지 않을 수 있습니다 */);
+
+    UFUNCTION(BlueprintCallable, Category = "Procedural Mesh")
+    FName GetBonePartRepresentative(const USkeletalMeshComponent* SkelComp, FName CutBoneName, FName TestBoneName);
+    UFUNCTION(BlueprintCallable, Category = "Procedural Mesh")
+    bool IsBoneInCutOffPart(const USkeletalMeshComponent* SkelComp, FName CutBoneName, FName TestBoneName);
+
+    FVector GetRandomTiltedUpVector();
+
 };
 
 

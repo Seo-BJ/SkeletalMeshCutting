@@ -252,8 +252,8 @@ void USlicingSkeletalMeshLibrary::SliceProceduralMesh(UProceduralMeshComponent* 
 			// If we have a section, and it has some valid geom
 			if (BaseSection != nullptr && BaseSection->ProcIndexBuffer.Num() > 0 && BaseSection->ProcVertexBuffer.Num() > 0)
 			{
-				int32 CurrentSectionSlicedVertCount = 0;
-				int32 CurrentSectionOtherHalfVertCount = 0;
+				// int32 CurrentSectionSlicedVertCount = 0;
+				// int32 CurrentSectionOtherHalfVertCount = 0;
 				
 				// Compare bounding box of section with slicing plane
 				int32 BoxCompare = BoxPlaneCompare(BaseSection->SectionLocalBox, SlicePlane);
@@ -267,11 +267,11 @@ void USlicingSkeletalMeshLibrary::SliceProceduralMesh(UProceduralMeshComponent* 
 						for (int32 BaseVertIdx = 0; BaseVertIdx < BaseSection->ProcVertexBuffer.Num(); ++BaseVertIdx)
 						{
 							// Key: OtherHalf 메쉬의 새 글로벌 인덱스, Value: 원본 BaseSection의 로컬 인덱스
-							OutOtherSlicedToBaseVertexIndex.Add((GlobalVertexOffsetForOtherHalf + BaseVertIdx), BaseVertIdx);
+							OutOtherSlicedToBaseVertexIndex.Add((GlobalVertexOffsetForOtherHalf+BaseVertIdx), BaseVertIdx);
 						}
 						OtherSections.Add(*BaseSection);
 						OtherMaterials.Add(InProcMesh->GetMaterial(SectionIndex));
-						CurrentSectionOtherHalfVertCount = BaseSection->ProcVertexBuffer.Num();
+						// CurrentSectionOtherHalfVertCount = BaseSection->ProcVertexBuffer.Num();
 					}
 
 					InProcMesh->ClearMeshSection(SectionIndex);
@@ -284,7 +284,7 @@ void USlicingSkeletalMeshLibrary::SliceProceduralMesh(UProceduralMeshComponent* 
 						// Key: InProcMesh의 새 글로벌 인덱스, Value: 원본 BaseSection의 로컬 인덱스
 						OutSlicedToBaseVertexIndex.Add((GlobalVertexOffsetForSlicedMesh + BaseVertIdx), BaseVertIdx);
 					}
-					CurrentSectionSlicedVertCount = BaseSection->ProcVertexBuffer.Num();
+					// CurrentSectionSlicedVertCount = BaseSection->ProcVertexBuffer.Num();
 				}
 				// Box intersects plane, need to clip some polys!
 				else // 섹션이 절단됨
