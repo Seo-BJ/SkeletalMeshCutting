@@ -237,14 +237,14 @@ bool USlicingSkelMeshComponent::SliceMeshInternal(USkeletalMeshComponent* SkelCo
     {
         USlicingSkeletalMeshLibrary::SliceProceduralMesh(
             ProceduralMeshComponent,     
-            BoneLocation,                 // PlanePosition
-            GetRandomTiltedUpVector(),             // PlaneNormal: 멤버 변수 또는 적절히 계산된 값 사용 (예: FVector::UpVector)
-            true,                         // bCreateOtherHalf
-            OtherHalfProceduralMeshComponent,                // OutOtherHalfProcMesh
-            EProcMeshSliceCapOption::NoCap,                    // EProcMeshSliceCapOption (멤버 변수 또는 로컬 값)
-            CapMaterialInterface,         // UMaterialInterface* (멤버 변수 또는 로컬 값)
-            SlicedPMC_To_OriginalPMC_VerticesMap,   // OutSlicedToBaseVertexIndex
-            OtherHalfPMC_To_OrigianlPMC_VerticesMap // OutOtherSlicedToBaseVertexIndex
+            BoneLocation,               
+            GetRandomTiltedUpVector(),          
+            true,                       
+            OtherHalfProceduralMeshComponent,               
+            EProcMeshSliceCapOption::NoCap,                 
+            CapMaterialInterface,        
+            SlicedPMC_To_OriginalPMC_VerticesMap,   
+            OtherHalfPMC_To_OrigianlPMC_VerticesMap 
         );
 
 
@@ -906,7 +906,7 @@ void USlicingSkelMeshComponent::PerformEntireVertexSkinning(UProceduralMeshCompo
                 for (int32 i = 0; i < VertexBoneWeightsInfo->InfluencingBoneIndices.Num(); ++i)
                 {
                     int32 BoneIndex = VertexBoneWeightsInfo->InfluencingBoneIndices[i];
-                    /*
+                    
                     if ((bOtherHalfMesh == false && BoneIndex < TargetBoneIndexInRefSkeleton))
                     {
                         CorrectionWeight += VertexBoneWeightsInfo->BoneWeights[i];
@@ -915,8 +915,9 @@ void USlicingSkelMeshComponent::PerformEntireVertexSkinning(UProceduralMeshCompo
                     {
                         
                         CorrectionWeight += VertexBoneWeightsInfo->BoneWeights[i];
-                    }*/
+                    }
 
+                    /*
                     
                     if( ( bOtherHalfMesh == false &&  !IsBoneInCutOffPart(SkelComp, TargetBoneName,VertexBoneWeightsInfo->BoneNames[i])))
                     {
@@ -924,8 +925,8 @@ void USlicingSkelMeshComponent::PerformEntireVertexSkinning(UProceduralMeshCompo
                     }
                     else if (bOtherHalfMesh == true && (IsBoneInCutOffPart(SkelComp, TargetBoneName,VertexBoneWeightsInfo->BoneNames[i])))
                     {
-                        //CorrectionWeight += VertexBoneWeightsInfo->BoneWeights[i];
-                    }
+                      //  CorrectionWeight += VertexBoneWeightsInfo->BoneWeights[i];
+                    }*/
                 }
                 
                 for (int32 i = 0; i < VertexBoneWeightsInfo->InfluencingBoneIndices.Num(); ++i)
@@ -943,7 +944,7 @@ void USlicingSkelMeshComponent::PerformEntireVertexSkinning(UProceduralMeshCompo
                     }
                     else if ((bOtherHalfMesh == true && BoneIndex > ParentBoneIndexInRefSkeleton))
                     {
-                        // continue;
+                        continue;
                     }
                     
                     if (!AllCurrentBoneTransforms_CS.IsValidIndex(BoneIndex))
@@ -981,7 +982,6 @@ void USlicingSkelMeshComponent::PerformEntireVertexSkinning(UProceduralMeshCompo
                     FSlicedProcMeshVertexInfo ProcMeshVertex = SlicedPMC_CuttingSurfaceVertices[ProcVertexIndex];
                     
                     FTransform BindPoseBoneTransform_CS = FAnimationRuntime::GetComponentSpaceTransformRefPose(SkeletalMeshAsset->GetRefSkeleton(), TargetBoneIndexInRefSkeleton);
-                    // DrawDebugSphere(GetWorld(), GetOwnerSkeletalMeshComponent()->GetComponentTransform().TransformPosition(CurrentAnimatedBoneTransform_CS.GetLocation()) , 3.0f, 10, FColor::Green, false, -1.f);
                     const FTransform InverseBindPoseBoneTransform_CS = BindPoseBoneTransform_CS.Inverse();
                     const FTransform CombinedBoneTransform_CS = CurrentAnimatedBoneTransform_CS * InverseBindPoseBoneTransform_CS;
                     
