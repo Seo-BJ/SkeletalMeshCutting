@@ -9,12 +9,8 @@
   <component name="ChangeListManager">
     <list default="true" id="e2cb7a5e-445f-4d26-9b4a-ef9aa10d1f20" name="변경" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.SkeletalMeshCutting.dir/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.SkeletalMeshCutting.dir/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_PlayerCharacter.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_PlayerCharacter.uasset" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_TestMeshCutting.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_TestMeshCutting.uasset" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_ThirdPersonGameMode.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_ThirdPersonGameMode.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/__ExternalActors__/ThirdPerson/Maps/ThirdPersonMap/1/ZM/GKWLQ3OHK2EW4NXG9FHBIZ.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Source/AdvancedActionFeature/Private/SlicingSkelMeshComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/AdvancedActionFeature/Source/AdvancedActionFeature/Private/SlicingSkelMeshComponent.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -262,7 +258,7 @@
       <workItem from="1749728567604" duration="5166000" />
       <workItem from="1749741366161" duration="604000" />
       <workItem from="1750489166766" duration="2057000" />
-      <workItem from="1750657859451" duration="4595000" />
+      <workItem from="1750657859451" duration="7173000" />
     </task>
     <servers />
   </component>
